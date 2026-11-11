@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Build & Test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS Universal
+            os: macos-latest
+            platform: darwin/universal
+          - name: Linux (amd64 & arm64)
+            os: ubuntu-latest
+            platform: linux/amd64,linux/arm64
+          - name: Windows (amd64 & arm64)
+            os: windows-latest
+            platform: windows/amd64,windows/arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run go vet & mygo vet
+        run: |
+          go vet ./...
+          go tool mygo vet
+
+      - name: Run unit & headless UI tests with race detector
+        run: go test -race -v ./...
+
+      - name: Build native packages (${{ matrix.platform }})
+        run: go tool mygo build "-platform=${{ matrix.platform }}"

@@ -1,0 +1,236 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (without leading 'v', e.g. 0.3.0)"
+        required: false
+        default: "0.3.0"
+      draft:
+        description: "Create as draft release"
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    name: Resolve Release Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      draft: ${{ steps.meta.outputs.draft }}
+    steps:
+      - name: Determine version & tag
+        id: meta
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            TAG="${GITHUB_REF_NAME}"
+            VER="${TAG#v}"
+            DRAFT="false"
+          else
+            RAW="${{ inputs.version }}"
+            VER="${RAW#v}"
+            TAG="v${VER}"
+            DRAFT="${{ inputs.draft }}"
+          fi
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "draft=${DRAFT}" >> "$GITHUB_OUTPUT"
+
+  build-macos:
+    name: Build macOS Universal
+    needs: prepare
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Sync version (${{ needs.prepare.outputs.version }})
+        run: |
+          jq --arg v "${{ needs.prepare.outputs.version }}" '.version = $v' mygo.json > mygo.json.tmp
+          mv mygo.json.tmp mygo.json
+
+      - name: Run tests
+        run: go test -race ./...
+
+      - name: Build Universal macOS .app & .dmg
+        run: |
+          go tool mygo build "-platform=darwin/universal"
+          mkdir -p dist-out
+          find build -maxdepth 3 -name "*.dmg" -exec cp -v {} dist-out/ \;
+          ls -lh dist-out/
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist-macos
+          path: dist-out/*
+          if-no-files-found: error
+
+  build-linux:
+    name: Build Linux (amd64 & arm64)
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Sync version (${{ needs.prepare.outputs.version }})
+        run: |
+          jq --arg v "${{ needs.prepare.outputs.version }}" '.version = $v' mygo.json > mygo.json.tmp
+          mv mygo.json.tmp mygo.json
+
+      - name: Run tests
+        run: go test -race ./...
+
+      - name: Build Linux .deb & .tar.gz packages
+        run: |
+          go tool mygo build "-platform=linux/amd64,linux/arm64"
+          mkdir -p dist-out
+          find build -maxdepth 3 \( -name "*.deb" -o -name "*.tar.gz" \) -exec cp -v {} dist-out/ \;
+          ls -lh dist-out/
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist-linux
+          path: dist-out/*
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows (amd64 & arm64)
+    needs: prepare
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Sync version (${{ needs.prepare.outputs.version }})
+        shell: pwsh
+        run: |
+          $cfg = Get-Content mygo.json -Raw | ConvertFrom-Json
+          $cfg.version = "${{ needs.prepare.outputs.version }}"
+          $cfg | ConvertTo-Json -Depth 10 | Set-Content mygo.json -Encoding UTF8
+
+      - name: Run tests
+        run: go test -race ./...
+
+      - name: Build Windows NSIS installers & portable archives
+        shell: pwsh
+        run: |
+          go tool mygo build "-platform=windows/amd64,windows/arm64"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force -Path dist-out | Out-Null
+          Get-ChildItem -Path build -Recurse -Filter "*setup*.exe" | ForEach-Object {
+            Copy-Item $_.FullName -Destination dist-out\
+          }
+          $ver = "${{ needs.prepare.outputs.version }}"
+          foreach ($arch in @("amd64", "arm64")) {
+            $dir = Join-Path "build" "windows-$arch"
+            if (Test-Path $dir) {
+              $stageDir = Join-Path $env:RUNNER_TEMP "Mygopia-windows-$arch"
+              New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
+              Get-ChildItem -Path $dir -File | Where-Object { $_.Name -notlike ".*" -and $_.Name -notlike "*setup*.exe" } | ForEach-Object {
+                Copy-Item $_.FullName -Destination $stageDir
+              }
+              $zipPath = Join-Path "dist-out" "mygopia-$ver-windows-$arch-portable.zip"
+              Compress-Archive -Path "$stageDir\*" -DestinationPath $zipPath -Force
+            }
+          }
+          Get-ChildItem dist-out
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist-windows
+          path: dist-out/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish Release & Homebrew Cask
+    needs: [prepare, build-macos, build-linux, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS.txt & Homebrew Cask
+        id: cask
+        run: |
+          VER="${{ needs.prepare.outputs.version }}"
+          cd release-assets
+          sha256sum * | tee SHA256SUMS.txt
+          DMG_FILE="mygopia-${VER}.dmg"
+          if [[ ! -f "$DMG_FILE" ]]; then
+            echo "Expected DMG $DMG_FILE not found!" >&2
+            exit 1
+          fi
+          DMG_SHA=$(sha256sum "$DMG_FILE" | awk '{print $1}')
+          cd ..
+          sed -e "s/version \".*\"/version \"${VER}\"/" \
+              -e "s/sha256 :no_check/sha256 \"${DMG_SHA}\"/" \
+              packaging/homebrew/Casks/mygopia.rb > release-assets/mygopia.rb
+          cat release-assets/mygopia.rb
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          DRAFT_FLAG=""
+          if [[ "${{ needs.prepare.outputs.draft }}" == "true" ]]; then
+            DRAFT_FLAG="--draft"
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release-assets/* --clobber
+          else
+            gh release create "$TAG" release-assets/* \
+              --title "Mygopia $TAG" \
+              --target "${{ github.sha }}" \
+              --generate-notes \
+              $DRAFT_FLAG
+          fi
+
+      - name: Update EvensonCalder/homebrew-tap (when published & token configured)
+        if: needs.prepare.outputs.draft == 'false'
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [[ -z "$TAP_TOKEN" ]]; then
+            echo "HOMEBREW_TAP_TOKEN secret not configured; skipping automatic tap push (mygopia.rb is attached to the release)."
+            exit 0
+          fi
+          VER="${{ needs.prepare.outputs.version }}"
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/EvensonCalder/homebrew-tap.git" /tmp/homebrew-tap
+          mkdir -p /tmp/homebrew-tap/Casks
+          cp release-assets/mygopia.rb /tmp/homebrew-tap/Casks/mygopia.rb
+          cd /tmp/homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/mygopia.rb
+          if ! git diff --cached --quiet; then
+            git commit -m "cask/mygopia: update to ${VER}"
+            git push origin HEAD
+          fi

@@ -1,0 +1,16 @@
+# Build outputs
+/build/
+/dist/
+/.mygo/
+/vendor/
+/mygopia
+/mygopia.exe
+
+# Go test / coverage artifacts
+*.test
+*.out
+coverage.html
+
+# OS metadata
+.DS_Store
+Thumbs.db
