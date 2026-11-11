@@ -1,8 +1,25 @@
-# Mygopia
+<p align="center">
+  <img src="./resources/icon.png" alt="Mygopia Icon" width="108" />
+</p>
 
-English | [简体中文](./README.zh-CN.md)
+<h1 align="center">Mygopia</h1>
 
-A native desktop GUI client for [Kopia](https://kopia.io), built with the [Mygo](https://github.com/egoist/mygo) framework. Supports multi-repository management, cross-snapshot file search, and local-vs-snapshot diffing across macOS, Windows, and Linux.
+<p align="center">
+  English | <a href="./README.zh-CN.md">简体中文</a>
+</p>
+
+<p align="center">
+  A native desktop GUI client for <a href="https://kopia.io">Kopia</a>, built with the <a href="https://github.com/egoist/mygo">Mygo</a> framework.<br/>
+  Supports multi-repository management, cross-snapshot file search, and local-vs-snapshot diffing across macOS, Windows, and Linux.
+</p>
+
+## Screenshots
+
+| Backups Overview | Cross-Snapshot Global Search |
+| :---: | :---: |
+| ![Backups](./docs/screenshots/en-backups.png) | ![Global Search](./docs/screenshots/en-search.png) |
+| **Snapshot & Local Folder Diff** | **Themes, Accent Colors & Languages** |
+| ![Snapshot Diff](./docs/screenshots/en-diff.png) | ![Settings](./docs/screenshots/en-settings.png) |
 
 ## Features
 
@@ -66,6 +83,9 @@ cd mygopia
 
 # Run tests
 go test -race ./...
+
+# Regenerate synthetic README screenshots
+go test ./internal/app -run TestGenerateDocsScreenshots -docs-screenshots=../../docs/screenshots
 
 # Run in development
 go tool mygo dev

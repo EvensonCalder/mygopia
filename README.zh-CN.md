@@ -1,8 +1,25 @@
-# Mygopia
+<p align="center">
+  <img src="./resources/icon.png" alt="Mygopia Icon" width="108" />
+</p>
 
-[English](./README.md) | 简体中文
+<h1 align="center">Mygopia</h1>
 
-基于 [Mygo](https://github.com/egoist/mygo) 框架构建的原生 [Kopia](https://kopia.io) 桌面图形客户端，支持 macOS、Windows 与 Linux，提供多仓库管理、跨快照全局文件搜索与本地目录差异对比。
+<p align="center">
+  <a href="./README.md">English</a> | 简体中文
+</p>
+
+<p align="center">
+  基于 <a href="https://github.com/egoist/mygo">Mygo</a> 框架构建的原生 <a href="https://kopia.io">Kopia</a> 桌面图形客户端。<br/>
+  支持 macOS、Windows 与 Linux，提供多仓库管理、跨快照全局文件搜索与本地目录差异对比。
+</p>
+
+## 界面预览
+
+| 备份源总览 | 跨快照全局搜索与历史版本 |
+| :---: | :---: |
+| ![备份源总览](./docs/screenshots/zh-backups.png) | ![全局搜索](./docs/screenshots/zh-search.png) |
+| **快照与本地待备份对比** | **主题色、外观与多语言设置** |
+| ![快照对比](./docs/screenshots/zh-diff.png) | ![应用设置](./docs/screenshots/zh-settings.png) |
 
 ## 功能特性
 
@@ -26,7 +43,7 @@ Mygopia 调用系统已安装的 `kopia` 命令行程序作为底层备份引擎
    - **Windows**：`scoop install rclone` 或 `winget install Rclone.Rclone`
    - **Linux**：`sudo apt install rclone` 或访问 [rclone.org/downloads](https://rclone.org/downloads/)
 
-启动后会自动检测常用安装路径下的 `kopia` 与 `rclone`；也可在 **应用设置 → Kopia 引擎配置** 中手动指定可执行文件路径。
+启动后会自动检测常用安装路径下的 `kopia` 与 `rclone`；也可在 **应用设置 → Kopia 引擎路径** 中手动指定可执行文件路径。
 
 ## 安装方式
 
@@ -66,6 +83,9 @@ cd mygopia
 
 # 运行测试
 go test -race ./...
+
+# 自动重新生成无隐私信息的 README 演示截图
+go test ./internal/app -run TestGenerateDocsScreenshots -docs-screenshots=../../docs/screenshots
 
 # 开发模式运行
 go tool mygo dev

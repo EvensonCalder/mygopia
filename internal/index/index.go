@@ -162,6 +162,11 @@ func (e *Engine) RemoveRepo(repoID string) {
 
 // SeedRepo populates a repository catalog directly in memory (used by unit and UI tests).
 func (e *Engine) SeedRepo(repoID, repoName string, items []SearchItem) {
+	e.SeedRepoWithStats(repoID, repoName, items, 0, time.Now())
+}
+
+// SeedRepoWithStats populates a repository catalog with explicit cache count and sync timestamp.
+func (e *Engine) SeedRepoWithStats(repoID, repoName string, items []SearchItem, cachedDirs int, updatedAt time.Time) {
 	var files, folders, deleted, snaps int
 	sources := make(map[string]bool)
 	for _, it := range items {
@@ -183,12 +188,13 @@ func (e *Engine) SeedRepo(repoID, repoName string, items []SearchItem) {
 		stats: RepoIndexStats{
 			RepoID:        repoID,
 			RepoName:      repoName,
-			UpdatedAt:     time.Now(),
+			UpdatedAt:     updatedAt,
 			SnapshotCount: snaps,
 			SourceCount:   len(sources),
 			FileCount:     files,
 			FolderCount:   folders,
 			DeletedCount:  deleted,
+			CachedDirs:    cachedDirs,
 		},
 		items: slices.Clone(items),
 	}
