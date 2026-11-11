@@ -12,6 +12,7 @@ import (
 	"mygopia/internal/config"
 	"mygopia/internal/index"
 	"mygopia/internal/kopia"
+	"mygopia/locales"
 )
 
 func (a *App) triggerIndexActiveRepo() {
@@ -33,7 +34,7 @@ func (a *App) triggerIndexActiveRepo() {
 			return
 		}
 		if stats, ok := a.indexer.Stats(repoID); ok {
-			a.toast(trf("Index updated (%d files, %d folders)", stats.FileCount, stats.FolderCount), false)
+			a.toast(locales.IndexUpdatedSummary(stats.FileCount, stats.FolderCount), false)
 		}
 	}()
 }
@@ -49,7 +50,7 @@ func (a *App) recomputeSearchIfNeeded() {
 		repoScope = ""
 	}
 	srcFilter := a.searchSourceFilter
-	if srcFilter == tr("All Sources") {
+	if srcFilter == locales.AllSources() {
 		srcFilter = ""
 	}
 
@@ -187,8 +188,8 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 		// Top Search Bar + Index Controls
 		ui.Row(c).AlignItems(ui.Center).Gap(10).Role(ui.RoleSearch).Children(func() {
 			sf := ui.SearchField(c.Key("global-search"), &a.searchQuery).
-				Placeholder(tr("Search files & folders across all snapshots…")).
-				Label(tr("Search")).
+				Placeholder(locales.SearchFilesFoldersAcrossAllSnapshots()).
+				Label(locales.NavSearch()).
 				AutoFocus().
 				Grow(1)
 			if a.focusSearchNextFrame {
@@ -204,18 +205,18 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 			if a.searchAllRepos {
 				scopeSeg = 1
 			}
-			if ui.Segmented(c, &scopeSeg, tr("Current Repository"), tr("All Repositories")).Changed() {
+			if ui.Segmented(c, &scopeSeg, locales.CurrentRepository(), locales.AllRepositories()).Changed() {
 				a.searchAllRepos = scopeSeg == 1
 				a.searchPageOffset = 0
 				a.searchDirty = true
 			}
 
-			btnText := tr("Update Index")
+			btnText := locales.UpdateIndex()
 			if idxStats.Indexing {
-				btnText = tr("Indexing…")
+				btnText = locales.Indexing()
 			}
 			ui.PrimaryButton(c, btnText).
-				Tooltip(tr("Refresh (⌘R) syncs repository & incremental index; click here to manually scan snapshot trees (cached folders are skipped).")).
+				Tooltip(locales.RefreshRSyncsRepositoryIncrementalIndexClick()).
 				Disabled(idxStats.Indexing || a.manager == nil || !st.Connected()).
 				OnClick(func() {
 					a.triggerIndexActiveRepo()
@@ -224,14 +225,14 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 
 		// Primary Filter Row (including Time Range Picker & Advanced Toggle)
 		ui.Row(c).AlignItems(ui.Center).Wrap().Gap(8).Children(func() {
-			if ui.Segmented(c, &a.searchKindSeg, tr("All"), tr("Files"), tr("Folders")).Changed() {
+			if ui.Segmented(c, &a.searchKindSeg, locales.All(), locales.Files(), locales.Folders()).Changed() {
 				a.searchPageOffset = 0
 				a.searchDirty = true
 			}
 
 			// Source dropdown (path-first labels without redundant local user@host prefix)
 			srcKeys, srcLabels := sourceSelectOptions(st.SourceList(), st)
-			allSrcLabel := tr("All Sources")
+			allSrcLabel := locales.AllSources()
 			srcOpts := append([]string{allSrcLabel}, srcLabels...)
 			curSrc := allSrcLabel
 			if a.searchSourceFilter != "" {
@@ -275,7 +276,7 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 			}
 
 			// Min Size dropdown
-			sizeLabels := []string{tr("Any Size"), tr("> 1 MB"), tr("> 10 MB"), tr("> 100 MB"), tr("> 1 GB")}
+			sizeLabels := []string{locales.AnySize(), locales.SizeOver1MB(), locales.SizeOver10MB(), locales.SizeOver100MB(), locales.SizeOver1GB()}
 			if a.searchSizePreset < 0 || a.searchSizePreset >= len(sizeLabels) {
 				a.searchSizePreset = 0
 			}
@@ -291,7 +292,7 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 				a.searchDirty = true
 			}
 
-			if ui.Checkbox(c, &a.searchDeletedOnly, tr("Deleted only")).Changed() {
+			if ui.Checkbox(c, &a.searchDeletedOnly, locales.DeletedFromDiskOnly()).Changed() {
 				if a.searchDeletedOnly {
 					a.searchStatusSeg = 2
 				} else if a.searchStatusSeg == 2 {
@@ -300,23 +301,23 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 				a.searchPageOffset = 0
 				a.searchDirty = true
 			}
-			if ui.Checkbox(c, &a.searchMultiVersion, tr("Versions ≥ 2")).Changed() {
+			if ui.Checkbox(c, &a.searchMultiVersion, locales.VersionsAtLeastTwo()).Changed() {
 				a.searchPageOffset = 0
 				a.searchDirty = true
 			}
 
 			ui.Spacer(c)
 
-			advLabel := tr("Advanced Filters")
+			advLabel := locales.AdvancedFilters()
 			if a.searchShowAdvanced {
-				advLabel = tr("Hide Filters")
+				advLabel = locales.HideFilters()
 			}
 			if compactButton(c, advLabel).Clicked() {
 				a.searchShowAdvanced = !a.searchShowAdvanced
 			}
 
 			if a.hasActiveSearchFilters() {
-				if compactButton(c, tr("Reset Filters")).Clicked() {
+				if compactButton(c, locales.ResetFilters()).Clicked() {
 					a.resetSearchFilters()
 				}
 			}
@@ -341,14 +342,14 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 				Background(p.subtleBg).
 				Border(1, p.borderSoft).
 				Children(func() {
-					if ui.Segmented(c, &a.searchStatusSeg, tr("All Status"), tr("On Disk Only"), tr("Deleted Only")).Changed() {
+					if ui.Segmented(c, &a.searchStatusSeg, locales.AllStatus(), locales.OnDiskOnly(), locales.DeletedOnly()).Changed() {
 						a.searchDeletedOnly = a.searchStatusSeg == 2
 						a.searchPageOffset = 0
 						a.searchDirty = true
 					}
 
-					ui.Text(c, tr("Max Size")).FontSize(11.5).TextColor(p.muted).SingleLine()
-					maxSizeLabels := []string{tr("Any Size"), tr("< 1 MB"), tr("< 10 MB"), tr("< 100 MB"), tr("< 1 GB")}
+					ui.Text(c, locales.MaxSize()).FontSize(11.5).TextColor(p.muted).SingleLine()
+					maxSizeLabels := []string{locales.AnySize(), locales.SizeUnder1MB(), locales.SizeUnder10MB(), locales.SizeUnder100MB(), locales.SizeUnder1GB()}
 					if a.searchMaxSizePreset < 0 || a.searchMaxSizePreset >= len(maxSizeLabels) {
 						a.searchMaxSizePreset = 0
 					}
@@ -365,7 +366,7 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 					}
 
 					if ui.TextInput(c.Key("search-path-prefix"), &a.searchPathPrefix).
-						Placeholder(tr("Path prefix (e.g. Designs/)")).
+						Placeholder(locales.PathPrefixEGDesigns()).
 						Grow(1).
 						MinWidth(140).
 						MaxWidth(210).
@@ -375,7 +376,7 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 					}
 
 					if ui.TextInput(c.Key("inc-ext"), &a.searchIncludeExts).
-						Placeholder(tr("Include ext (pdf, zip)")).
+						Placeholder(locales.IncludeExtPdfZIP()).
 						Grow(1).
 						MinWidth(128).
 						MaxWidth(175).
@@ -384,7 +385,7 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 						a.searchDirty = true
 					}
 					if ui.TextInput(c.Key("exc-ext"), &a.searchExcludeExts).
-						Placeholder(tr("Exclude ext (tmp, mp4)")).
+						Placeholder(locales.ExcludeExtTmpMp4()).
 						Grow(1).
 						MinWidth(128).
 						MaxWidth(175).
@@ -400,9 +401,9 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 				emptyState(
 					c,
 					iconSearch,
-					tr("No indexed snapshots yet"),
-					tr("Click \"Update Index\" to scan snapshot trees. Unchanged folders are cached locally and never fetched twice."),
-					tr("Update Index"),
+					locales.NoIndexedSnapshotsYet(),
+					locales.ClickUpdateIndexToScanSnapshotTrees(),
+					locales.UpdateIndex(),
 					func() {
 						if a.manager != nil && st.Connected() {
 							a.triggerIndexActiveRepo()
@@ -420,22 +421,22 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 
 		// Summary bar
 		ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
-			ui.Text(c, trf("Matched %d items (%s)", a.searchResult.TotalMatched, formatBytes(a.searchResult.TotalBytes))).
+			ui.Text(c, locales.MatchedItemsSummary(a.searchResult.TotalMatched, formatBytes(a.searchResult.TotalBytes))).
 				FontSize(12).FontFeatures("tnum").TextColor(p.muted)
 			ui.Spacer(c)
 			if hasIdx && idxStats.SnapshotCount > 0 {
-				ui.Text(c, trf("Index Synced (%d snapshots)", idxStats.SnapshotCount)).
+				ui.Text(c, locales.IndexSyncedSnapshots(idxStats.SnapshotCount)).
 					FontSize(11.5).FontFeatures("tnum").TextColor(p.muted)
 			}
 			if hasIdx && !idxStats.UpdatedAt.IsZero() {
-				ui.Text(c, trf("DAG Cache: %d dirs · %s", idxStats.CachedDirs, formatShortTime(idxStats.UpdatedAt))).
+				ui.Text(c, locales.DagCacheSummary(idxStats.CachedDirs, formatShortTime(idxStats.UpdatedAt))).
 					FontSize(11.5).FontFeatures("tnum").TextColor(p.muted)
 			}
 		})
 
 		if len(a.searchResult.Items) == 0 {
 			card(c, func() {
-				emptyState(c, iconSearch, tr("No matching items"), "", "", nil)
+				emptyState(c, iconSearch, locales.NoMatchingItems(), "", "", nil)
 			}).Grow(1)
 			return
 		}
@@ -445,21 +446,21 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 		// Results Table + Optional Version Inspector Split
 		buildTable := func() {
 			cols := []ui.TableColumn{
-				{ID: "path", Title: tr("Path"), Width: 315, MinWidth: 160, Sortable: true},
-				{ID: "status", Title: tr("Status"), Width: 86},
-				{ID: "size", Title: tr("Size"), Width: 96, Align: ui.End, Sortable: true},
-				{ID: "versions", Title: tr("Versions"), Width: 78, Align: ui.End, Sortable: true},
-				{ID: "last", Title: tr("Last Seen"), Width: 144, Sortable: true},
-				{ID: "source", Title: tr("Source"), Width: 205, Sortable: true},
+				{ID: "path", Title: locales.Path(), Width: 315, MinWidth: 160, Sortable: true},
+				{ID: "status", Title: locales.Status(), Width: 86},
+				{ID: "size", Title: locales.Size(), Width: 96, Align: ui.End, Sortable: true},
+				{ID: "versions", Title: locales.Versions(), Width: 78, Align: ui.End, Sortable: true},
+				{ID: "last", Title: locales.LastSeen(), Width: 144, Sortable: true},
+				{ID: "source", Title: locales.Source(), Width: 205, Sortable: true},
 			}
 			if inspectorOpen {
 				cols = []ui.TableColumn{
-					{ID: "path", Title: tr("Path"), Width: 180, MinWidth: 130, Sortable: true},
-					{ID: "status", Title: tr("Status"), Width: 70},
-					{ID: "size", Title: tr("Size"), Width: 80, Align: ui.End, Sortable: true},
-					{ID: "versions", Title: tr("Versions"), Width: 70, Align: ui.End, Sortable: true},
-					{ID: "last", Title: tr("Last Seen"), Width: 146, Sortable: true},
-					{ID: "source", Title: tr("Source"), Width: 96, Sortable: true},
+					{ID: "path", Title: locales.Path(), Width: 180, MinWidth: 130, Sortable: true},
+					{ID: "status", Title: locales.Status(), Width: 70},
+					{ID: "size", Title: locales.Size(), Width: 80, Align: ui.End, Sortable: true},
+					{ID: "versions", Title: locales.Versions(), Width: 70, Align: ui.End, Sortable: true},
+					{ID: "last", Title: locales.LastSeen(), Width: 146, Sortable: true},
+					{ID: "source", Title: locales.Source(), Width: 96, Sortable: true},
 				}
 			}
 			a.searchTable.Selected = &a.searchSelectedRow
@@ -483,34 +484,34 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 							})
 							r.ContextMenu(func(m *ui.Menu) {
 								if !it.IsDir && a.desktopRunning {
-									if m.Item(tr("Save File…")).Chosen() {
+									if m.Item(locales.SaveFile()).Chosen() {
 										go a.saveSingleObjectInteractive(it.RepoID, it.LatestObjectID, it.Name)
 									}
 								}
-								if m.Item(tr("Restore…")).Chosen() {
+								if m.Item(locales.Restore()).Chosen() {
 									a.openRestoreModal(it.RepoID, it.LatestObjectID, it.Name)
 								}
 								if it.LatestSnapshotID != "" {
-									if m.Item(tr("Open Snapshot")).Chosen() {
+									if m.Item(locales.OpenSnapshot()).Chosen() {
 										a.openSnapshotByID(it.RepoID, it.Source, it.LatestSnapshotID)
 									}
-									if m.Item(tr("Compare…")).Chosen() {
+									if m.Item(locales.CompareProgress()).Chosen() {
 										a.openDiffForSource(it.Source, "", it.LatestSnapshotID)
 									}
 								}
 								m.Separator()
-								if m.Item(tr("Copy")).Chosen() {
+								if m.Item(locales.Copy()).Chosen() {
 									if a.desktopRunning {
 										mygo.Clipboard.WriteText(it.FullHostPath())
 									}
-									a.toast(tr("Copied to clipboard"), false)
+									a.toast(locales.CopiedToClipboard(), false)
 								}
 							})
 						case 1:
 							if it.OnDisk {
-								tableStatusPill(c, selected, tr("On Disk"), c.Theme().Success, p.successSoft)
+								tableStatusPill(c, selected, locales.OnDisk(), c.Theme().Success, p.successSoft)
 							} else {
-								tableStatusPill(c, selected, tr("Deleted"), c.Theme().Danger, p.dangerSoft)
+								tableStatusPill(c, selected, locales.Deleted(), c.Theme().Danger, p.dangerSoft)
 							}
 						case 2:
 							ui.Text(c, formatBytes(it.LatestSize)).FontFeatures("tnum").TextColor(primary).SingleLine()
@@ -584,7 +585,7 @@ func (a *App) renderSearchInspector(c *ui.Context, item index.SearchItem) {
 				ui.Icon(c, iconFile).FontSize(16).TextColor(p.accent)
 			}
 			ui.Text(c, item.Name).FontSize(14).FontWeight(600).Grow(1).SingleLine()
-			if compactButton(c, tr("Close")).Clicked() {
+			if compactButton(c, locales.Close()).Clicked() {
 				a.searchSelectedRow = -1
 			}
 		})
@@ -593,23 +594,23 @@ func (a *App) renderSearchInspector(c *ui.Context, item index.SearchItem) {
 
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 			if item.OnDisk {
-				statusPill(c, tr("On Disk"), c.Theme().Success, p.successSoft)
+				statusPill(c, locales.OnDisk(), c.Theme().Success, p.successSoft)
 			} else {
-				statusPill(c, tr("Deleted"), c.Theme().Danger, p.dangerSoft)
+				statusPill(c, locales.Deleted(), c.Theme().Danger, p.dangerSoft)
 			}
-			ui.Text(c, trf("First seen %s · Last seen %s", formatShortTime(item.FirstSeen), formatShortTime(item.LastSeen))).
+			ui.Text(c, locales.FirstLastSeenSummary(formatShortTime(item.FirstSeen), formatShortTime(item.LastSeen))).
 				FontSize(11.5).TextColor(p.muted)
 		})
 
 		ui.Box(c).Height(1).Background(p.border).Shrink(0)
 		ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-			ui.Text(c, tr("Version History")).FontSize(12.5).FontWeight(600).Grow(1)
+			ui.Text(c, locales.VersionHistory()).FontSize(12.5).FontWeight(600).Grow(1)
 			ui.Badge(c, intToStr(len(item.History)))
 		})
 
 		if len(item.History) > 4 {
 			if ui.SearchField(c.Key("ver-filter-"+item.Path), &a.searchVerFilter).
-				Placeholder(tr("Filter notes or time…")).
+				Placeholder(locales.FilterNotesOrTime()).
 				Changed() {
 				a.searchVerLimit = defaultVersionPageSize
 			}
@@ -652,21 +653,21 @@ func (a *App) renderSearchInspector(c *ui.Context, item index.SearchItem) {
 							ui.Text(c, shortenMiddle(v.ObjectID, 28)).Font("monospace").FontSize(11).TextColor(p.muted).SingleLine()
 							ui.Row(c).Gap(6).Justify(ui.End).Wrap().Padding(2, 0, 0, 0).Children(func() {
 								if v.SnapshotID != "" && item.LatestSnapshotID != "" && v.SnapshotID != item.LatestSnapshotID {
-									compactButton(c, tr("Diff Latest")).Tooltip(tr("Compare with Latest")).Padding(4, 10).OnClick(func() {
+									compactButton(c, locales.DiffLatest()).Tooltip(locales.CompareWithLatest()).Padding(4, 10).OnClick(func() {
 										a.openDiffForSource(item.Source, v.SnapshotID, item.LatestSnapshotID)
 									})
 								}
 								if v.SnapshotID != "" {
-									compactButton(c, tr("Locate")).Tooltip(tr("Open Snapshot")).Padding(4, 10).OnClick(func() {
+									compactButton(c, locales.Locate()).Tooltip(locales.OpenSnapshot()).Padding(4, 10).OnClick(func() {
 										a.openSnapshotByID(item.RepoID, item.Source, v.SnapshotID)
 									})
 								}
 								if !item.IsDir && a.desktopRunning {
-									compactButton(c, tr("Save…")).Tooltip(tr("Save Version…")).Padding(4, 10).OnClick(func() {
+									compactButton(c, locales.SaveProgress()).Tooltip(locales.SaveVersion()).Padding(4, 10).OnClick(func() {
 										go a.saveSingleObjectInteractive(item.RepoID, v.ObjectID, item.Name)
 									})
 								}
-								compactPrimaryButton(c, tr("Restore…")).Padding(4, 10).OnClick(func() {
+								compactPrimaryButton(c, locales.Restore()).Padding(4, 10).OnClick(func() {
 									a.openRestoreModal(item.RepoID, v.ObjectID, item.Name)
 								})
 							})
@@ -675,11 +676,11 @@ func (a *App) renderSearchInspector(c *ui.Context, item index.SearchItem) {
 
 				if rem := totalVers - len(visVers); rem > 0 {
 					ui.Row(c).Gap(6).Justify(ui.Center).Padding(4, 0).Children(func() {
-						if compactButton(c, trf("Load More (%d left)", rem)).Clicked() {
+						if compactButton(c, locales.LoadMoreRemaining(rem)).Clicked() {
 							a.searchVerLimit += defaultVersionPageSize
 						}
 						if rem > defaultVersionPageSize {
-							if compactButton(c, trf("Show All (%d)", totalVers)).Clicked() {
+							if compactButton(c, locales.ShowAllCount(totalVers)).Clicked() {
 								a.searchVerLimit = totalVers
 							}
 						}

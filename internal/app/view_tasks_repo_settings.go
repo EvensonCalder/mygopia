@@ -14,6 +14,7 @@ import (
 
 	"mygopia/internal/config"
 	"mygopia/internal/kopia"
+	"mygopia/locales"
 )
 
 type throttleFormDraft struct {
@@ -56,30 +57,15 @@ type notifyProfileDraft struct {
 func taskKindLabel(kind string) string {
 	switch strings.ToLower(strings.TrimSpace(kind)) {
 	case "snapshot":
-		if currentLanguage() != config.LangEN {
-			return tr("Task: Snapshot")
-		}
-		return "Snapshot"
+		return locales.TaskKindSnapshot()
 	case "restore":
-		if currentLanguage() != config.LangEN {
-			return tr("Task: Restore")
-		}
-		return "Restore"
+		return locales.TaskKindRestore()
 	case "maintenance":
-		if currentLanguage() != config.LangEN {
-			return tr("Task: Maintenance")
-		}
-		return "Maintenance"
+		return locales.TaskKindMaintenance()
 	case "estimate":
-		if currentLanguage() != config.LangEN {
-			return tr("Task: Estimate")
-		}
-		return "Estimate"
+		return locales.TaskKindEstimate()
 	case "sync":
-		if currentLanguage() != config.LangEN {
-			return tr("Task: Sync")
-		}
-		return "Sync"
+		return locales.TaskKindSync()
 	default:
 		return kind
 	}
@@ -89,7 +75,7 @@ func (a *App) renderTasksView(c *ui.Context, _ config.RepoProfile, st kopia.Repo
 	p := paletteOf(c)
 
 	ui.Column(c).Fill().Padding(16, 20).Gap(12).Children(func() {
-		ui.Tabs(c, &a.tasksTab, tr("Background Tasks"), tr("Server Output"))
+		ui.Tabs(c, &a.tasksTab, locales.BackgroundTasks(), locales.ServerOutput())
 
 		if a.tasksTab == 1 {
 			card(c, func() {
@@ -109,18 +95,18 @@ func (a *App) renderTasksView(c *ui.Context, _ config.RepoProfile, st kopia.Repo
 
 		if len(st.Tasks) == 0 {
 			card(c, func() {
-				emptyState(c, iconTasks, tr("No tasks recorded yet"), "", "", nil)
+				emptyState(c, iconTasks, locales.NoTasksRecordedYet(), "", "", nil)
 			}).Grow(1)
 			return
 		}
 
 		cols := []ui.TableColumn{
-			{ID: "kind", Title: tr("Kind"), Width: 105},
-			{ID: "desc", Title: tr("Description"), Width: 255, MinWidth: 150},
-			{ID: "status", Title: tr("Status"), Width: 98},
-			{ID: "started", Title: tr("Started"), Width: 172},
-			{ID: "dur", Title: tr("Duration"), Width: 82, Align: ui.End},
-			{ID: "prog", Title: tr("Progress"), Width: 220},
+			{ID: "kind", Title: locales.Kind(), Width: 105},
+			{ID: "desc", Title: locales.Description(), Width: 255, MinWidth: 150},
+			{ID: "status", Title: locales.Status(), Width: 98},
+			{ID: "started", Title: locales.Started(), Width: 172},
+			{ID: "dur", Title: locales.Duration(), Width: 82, Align: ui.End},
+			{ID: "prog", Title: locales.Progress(), Width: 220},
 		}
 
 		a.tasksTable.Selected = &a.selectedTaskRow
@@ -138,15 +124,15 @@ func (a *App) renderTasksView(c *ui.Context, _ config.RepoProfile, st kopia.Repo
 				case 2:
 					switch tk.Status {
 					case "RUNNING":
-						tableStatusPill(c, selected, tr("Running"), c.Theme().Accent, p.accentSoft)
+						tableStatusPill(c, selected, locales.Running(), c.Theme().Accent, p.accentSoft)
 					case "CANCELING":
-						tableStatusPill(c, selected, tr("Canceling"), c.Theme().Warning, p.warningSoft)
+						tableStatusPill(c, selected, locales.Canceling(), c.Theme().Warning, p.warningSoft)
 					case "SUCCESS":
-						tableStatusPill(c, selected, tr("Succeeded"), c.Theme().Success, p.successSoft)
+						tableStatusPill(c, selected, locales.Succeeded(), c.Theme().Success, p.successSoft)
 					case "FAILED":
-						tableStatusPill(c, selected, tr("Failed"), c.Theme().Danger, p.dangerSoft)
+						tableStatusPill(c, selected, locales.Failed(), c.Theme().Danger, p.dangerSoft)
 					case "CANCELED":
-						tableStatusPill(c, selected, tr("Canceled"), p.muted, p.subtleBg)
+						tableStatusPill(c, selected, locales.Canceled(), p.muted, p.subtleBg)
 					default:
 						tableStatusPill(c, selected, tk.Status, p.muted, p.subtleBg)
 					}
@@ -183,9 +169,9 @@ func (a *App) renderTasksView(c *ui.Context, _ config.RepoProfile, st kopia.Repo
 			selTask := st.Tasks[a.selectedTaskRow]
 			card(c, func() {
 				ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-					ui.Text(c, tr("Task Logs")+" — "+selTask.Description).FontSize(13).FontWeight(600).Grow(1).SingleLine()
+					ui.Text(c, locales.TaskLogs()+" — "+selTask.Description).FontSize(13).FontWeight(600).Grow(1).SingleLine()
 					if selTask.IsRunning() {
-						compactButton(c, tr("Cancel Task")).TextColor(c.Theme().Danger).OnClick(func() {
+						compactButton(c, locales.CancelTask()).TextColor(c.Theme().Danger).OnClick(func() {
 							a.cancelTaskAction(selTask.ID)
 						})
 					}
@@ -300,10 +286,10 @@ func (a *App) renderRepoView(c *ui.Context, prof config.RepoProfile, st kopia.Re
 
 	ui.Column(c).Fill().Padding(16, 20).Gap(12).Children(func() {
 		ui.Tabs(c, &a.repoTab,
-			tr("Connection & Format"),
-			tr("Bandwidth & Rate Limits"),
-			tr("Maintenance"),
-			tr("Notifications"),
+			locales.ConnectionFormat(),
+			locales.BandwidthRateLimits(),
+			locales.Maintenance(),
+			locales.Notifications(),
 		)
 
 		ui.Scroll(c.Key("repo-scroll")).Grow(1).Padding(0, 4, 8, 0).Children(func() {
@@ -319,34 +305,34 @@ func (a *App) renderRepoView(c *ui.Context, prof config.RepoProfile, st kopia.Re
 							savedSub = fmt.Sprintf("-%.1f%%", pct)
 						}
 						ui.Row(c).Wrap().Gap(12).Children(func() {
-							metricCard(c, tr("Original Logical Data"), formatBytes(st.ContentStats.OriginalBytes), "")
-							metricCard(c, tr("Deduplicated Packed Size"), formatBytes(st.ContentStats.PackedBytes), "")
-							metricCard(c, tr("Space Saved"), formatBytes(savedBytes), savedSub)
-							metricCard(c, tr("Content Chunks"), fmt.Sprintf("%d", st.ContentStats.Count), "")
+							metricCard(c, locales.OriginalLogicalData(), formatBytes(st.ContentStats.OriginalBytes), "")
+							metricCard(c, locales.DeduplicatedPackedSize(), formatBytes(st.ContentStats.PackedBytes), "")
+							metricCard(c, locales.SpaceSaved(), formatBytes(savedBytes), savedSub)
+							metricCard(c, locales.ContentChunks(), fmt.Sprintf("%d", st.ContentStats.Count), "")
 						})
 					}
 
 					card(c, func() {
-						ui.Text(c, tr("Connection & Format")).FontSize(14).FontWeight(600)
+						ui.Text(c, locales.ConnectionFormat()).FontSize(14).FontWeight(600)
 						if st.Status != nil {
-							kvRow(c, tr("Storage"), strings.ToUpper(st.Status.Storage))
-							kvRow(c, tr("Config File"), prof.ConfigFile)
-							kvRow(c, tr("Format Version"), intToStr(st.Status.FormatVersion))
-							kvRow(c, tr("Encryption Algorithm"), st.Status.Encryption)
-							kvRow(c, tr("Hash Algorithm"), st.Status.Hash)
-							kvRow(c, tr("Content Splitter"), st.Status.Splitter)
+							kvRow(c, locales.Storage(), strings.ToUpper(st.Status.Storage))
+							kvRow(c, locales.ConfigFile(), prof.ConfigFile)
+							kvRow(c, locales.FormatVersion(), intToStr(st.Status.FormatVersion))
+							kvRow(c, locales.EncryptionAlgorithm(), st.Status.Encryption)
+							kvRow(c, locales.HashAlgorithm(), st.Status.Hash)
+							kvRow(c, locales.ContentSplitter(), st.Status.Splitter)
 							if st.Status.ECC != "" {
-								kvRow(c, tr("Reed-Solomon ECC"), fmt.Sprintf("%s (%d%%)", st.Status.ECC, st.Status.ECCOverheadPercent))
+								kvRow(c, locales.ReedSolomonECC(), fmt.Sprintf("%s (%d%%)", st.Status.ECC, st.Status.ECCOverheadPercent))
 							}
-							kvRow(c, tr("Client Identity"), st.Status.Username+"@"+st.Status.Hostname)
+							kvRow(c, locales.ClientIdentity(), st.Status.Username+"@"+st.Status.Hostname)
 						}
 
 						ui.Box(c).Height(1).Background(p.border)
 						ui.Form(c, func() {
-							ui.Field(c, tr("Client Description"), func() {
+							ui.Field(c, locales.ClientDescription(), func() {
 								ui.Row(c).Gap(8).Children(func() {
 									ui.TextInput(c.Key("repo-edit-desc"), &a.repoDescDraft).Grow(1)
-									ui.Button(c, tr("Save")).OnClick(func() {
+									ui.Button(c, locales.Save()).OnClick(func() {
 										a.saveRepoDescriptionAction(a.repoDescDraft)
 									})
 								})
@@ -355,14 +341,14 @@ func (a *App) renderRepoView(c *ui.Context, prof config.RepoProfile, st kopia.Re
 
 						ui.Row(c).Gap(8).Justify(ui.End).Padding(4, 0, 0, 0).Children(func() {
 							if a.desktopRunning && prof.ConfigFile != "" {
-								ui.Button(c, tr("Reveal in File Manager")).OnClick(func() {
+								ui.Button(c, locales.RevealInFileManager()).OnClick(func() {
 									mygo.Shell.ShowItemInFolder(prof.ConfigFile)
 								})
 							}
-							ui.Button(c, tr("Sync & Refresh")).OnClick(func() {
+							ui.Button(c, locales.SyncRefresh()).OnClick(func() {
 								a.triggerManualRefresh()
 							})
-							ui.Button(c, tr("Disconnect Repository")).TextColor(c.Theme().Danger).OnClick(func() {
+							ui.Button(c, locales.DisconnectRepository()).TextColor(c.Theme().Danger).OnClick(func() {
 								a.disconnectRepoAction()
 							})
 						})
@@ -370,27 +356,27 @@ func (a *App) renderRepoView(c *ui.Context, prof config.RepoProfile, st kopia.Re
 
 				case 1:
 					card(c, func() {
-						ui.Text(c, tr("Bandwidth & Rate Limits")).FontSize(14).FontWeight(600)
+						ui.Text(c, locales.BandwidthRateLimits()).FontSize(14).FontWeight(600)
 						td := &a.throttleDraft
 						ui.Form(c, func() {
-							ui.Field(c, tr("Max Upload Speed (KB/s, 0 = unlimited)"), func() {
+							ui.Field(c, locales.MaxUploadSpeedKBS0Unlimited(), func() {
 								ui.NumberInput(c.Key("th-up"), &td.uploadKBps, 0, 10485760, 256).Width(180)
 							})
-							ui.Field(c, tr("Max Download Speed (KB/s, 0 = unlimited)"), func() {
+							ui.Field(c, locales.MaxDownloadSpeedKBS0Unlimited(), func() {
 								ui.NumberInput(c.Key("th-down"), &td.downloadKBps, 0, 10485760, 256).Width(180)
 							})
-							ui.Field(c, tr("Max Reads / sec"), func() {
+							ui.Field(c, locales.MaxReadsSec(), func() {
 								ui.NumberInput(c.Key("th-r"), &td.readsPerSec, 0, 100000, 10).Width(180)
 							})
-							ui.Field(c, tr("Max Writes / sec"), func() {
+							ui.Field(c, locales.MaxWritesSec(), func() {
 								ui.NumberInput(c.Key("th-w"), &td.writesPerSec, 0, 100000, 10).Width(180)
 							})
-							ui.Field(c, tr("Max Lists / sec"), func() {
+							ui.Field(c, locales.MaxListsSec(), func() {
 								ui.NumberInput(c.Key("th-l"), &td.listsPerSec, 0, 100000, 5).Width(180)
 							})
 						})
 						ui.Row(c).Justify(ui.End).Padding(4, 0, 0, 0).Children(func() {
-							ui.PrimaryButton(c, tr("Save Bandwidth Limits")).OnClick(func() {
+							ui.PrimaryButton(c, locales.SaveBandwidthLimits()).OnClick(func() {
 								a.saveThrottleAction()
 							})
 						})
@@ -398,38 +384,38 @@ func (a *App) renderRepoView(c *ui.Context, prof config.RepoProfile, st kopia.Re
 
 				case 2:
 					card(c, func() {
-						ui.Text(c, tr("Maintenance")).FontSize(14).FontWeight(600)
+						ui.Text(c, locales.Maintenance()).FontSize(14).FontWeight(600)
 						md := &a.maintDraft
 						if st.Maintenance != nil {
-							kvRow(c, tr("Next Quick Run"), formatTimestamp(st.Maintenance.Schedule.NextQuickMaintenanceTime.Time))
-							kvRow(c, tr("Next Full Run"), formatTimestamp(st.Maintenance.Schedule.NextFullMaintenanceTime.Time))
+							kvRow(c, locales.NextQuickRun(), formatTimestamp(st.Maintenance.Schedule.NextQuickMaintenanceTime.Time))
+							kvRow(c, locales.NextFullRun(), formatTimestamp(st.Maintenance.Schedule.NextFullMaintenanceTime.Time))
 							ui.Box(c).Height(1).Background(p.border)
 						}
 						ui.Form(c, func() {
-							ui.Field(c, tr("Maintenance Owner"), func() {
+							ui.Field(c, locales.MaintenanceOwner(), func() {
 								ui.TextInput(c.Key("mnt-owner"), &md.owner).Placeholder("user@host")
 							})
 							ui.Field(c, "", func() {
-								ui.Checkbox(c, &md.enableQuick, tr("Enable Quick Maintenance"))
+								ui.Checkbox(c, &md.enableQuick, locales.EnableQuickMaintenance())
 							})
-							ui.Field(c, tr("Quick Interval (Hours)"), func() {
+							ui.Field(c, locales.QuickIntervalHours(), func() {
 								ui.NumberInput(c.Key("mnt-qh"), &md.quickHours, 0.25, 720, 1).Width(150).Disabled(!md.enableQuick)
 							})
 							ui.Field(c, "", func() {
-								ui.Checkbox(c, &md.enableFull, tr("Enable Full Maintenance"))
+								ui.Checkbox(c, &md.enableFull, locales.EnableFullMaintenance())
 							})
-							ui.Field(c, tr("Full Interval (Hours)"), func() {
+							ui.Field(c, locales.FullIntervalHours(), func() {
 								ui.NumberInput(c.Key("mnt-fh"), &md.fullHours, 1, 2160, 6).Width(150).Disabled(!md.enableFull)
 							})
 						})
 						ui.Row(c).Gap(8).Justify(ui.End).Wrap().Padding(4, 0, 0, 0).Children(func() {
-							ui.Button(c, tr("Run Quick Maintenance")).Disabled(md.runningAction).OnClick(func() {
+							ui.Button(c, locales.RunQuickMaintenance()).Disabled(md.runningAction).OnClick(func() {
 								a.runMaintenanceAction(false)
 							})
-							ui.Button(c, tr("Run Full Maintenance")).Disabled(md.runningAction).OnClick(func() {
+							ui.Button(c, locales.RunFullMaintenance()).Disabled(md.runningAction).OnClick(func() {
 								a.runMaintenanceAction(true)
 							})
-							ui.PrimaryButton(c, tr("Save Maintenance Config")).OnClick(func() {
+							ui.PrimaryButton(c, locales.SaveMaintenanceConfig()).OnClick(func() {
 								a.saveMaintenanceAction()
 							})
 						})
@@ -438,13 +424,13 @@ func (a *App) renderRepoView(c *ui.Context, prof config.RepoProfile, st kopia.Re
 				case 3:
 					if len(st.NotificationProfiles) > 0 {
 						card(c, func() {
-							ui.Text(c, tr("Notification Profiles")).FontSize(14).FontWeight(600)
+							ui.Text(c, locales.NotificationProfiles()).FontSize(14).FontWeight(600)
 							for _, np := range st.NotificationProfiles {
 								profItem := np
 								ui.Row(c.Key("np-" + profItem.ProfileName)).AlignItems(ui.Center).Gap(10).Padding(6, 0).Children(func() {
 									ui.Text(c, profItem.ProfileName).FontWeight(600).Grow(1)
 									statusPill(c, profItem.MethodConfig.Type, p.text, p.subtleBg)
-									compactButton(c, tr("Delete")).TextColor(c.Theme().Danger).OnClick(func() {
+									compactButton(c, locales.Delete()).TextColor(c.Theme().Danger).OnClick(func() {
 										a.deleteNotificationProfileAction(profItem.ProfileName)
 									})
 								})
@@ -453,60 +439,60 @@ func (a *App) renderRepoView(c *ui.Context, prof config.RepoProfile, st kopia.Re
 					}
 
 					card(c, func() {
-						ui.Text(c, tr("New Notification Profile")).FontSize(14).FontWeight(600)
+						ui.Text(c, locales.NewNotificationProfile()).FontSize(14).FontWeight(600)
 						nf := &a.notifyForm
 						ui.Form(c, func() {
-							ui.Field(c, tr("Profile Name"), func() {
+							ui.Field(c, locales.ProfileName(), func() {
 								ui.TextInput(c.Key("nf-name"), &nf.name).Placeholder("ops-alerts")
 							})
-							ui.Field(c, tr("Notification Method"), func() {
+							ui.Field(c, locales.NotificationMethod(), func() {
 								ui.Select(c.Key("nf-method"), &nf.method, []string{"webhook", "email", "pushover"})
 							})
-							ui.Field(c, tr("Minimum Severity"), func() {
+							ui.Field(c, locales.MinimumSeverity(), func() {
 								ui.Select(c.Key("nf-sev"), &nf.minSeverity, []string{"-100 (Verbose)", "-10 (Report)", "0 (Info)", "10 (Warning)", "20 (Error)"})
 							})
 
 							switch nf.method {
 							case "webhook":
-								ui.Field(c, tr("Webhook URL"), func() {
+								ui.Field(c, locales.WebhookURL(), func() {
 									ui.TextInput(c.Key("nf-wh-url"), &nf.webhookURL).Placeholder("https://hooks.example.com/kopia")
 								})
-								ui.Field(c, tr("HTTP Method"), func() {
+								ui.Field(c, locales.HttpMethod(), func() {
 									ui.Select(c.Key("nf-wh-m"), &nf.httpMethod, []string{"POST", "PUT"})
 								})
 							case "email":
-								ui.Field(c, tr("SMTP Server"), func() {
+								ui.Field(c, locales.SmtpServer(), func() {
 									ui.Row(c).Gap(8).Children(func() {
 										ui.TextInput(c.Key("nf-smtp-s"), &nf.smtpServer).Placeholder("smtp.example.com").Grow(1)
 										ui.TextInput(c.Key("nf-smtp-p"), &nf.smtpPort).Placeholder("587").Width(80)
 									})
 								})
-								ui.Field(c, tr("SMTP Username"), func() {
+								ui.Field(c, locales.SmtpUsername(), func() {
 									ui.TextInput(c.Key("nf-smtp-u"), &nf.smtpUser)
 								})
-								ui.Field(c, tr("SMTP Password"), func() {
+								ui.Field(c, locales.SmtpPassword(), func() {
 									ui.TextInput(c.Key("nf-smtp-pw"), &nf.smtpPassword).Password()
 								})
-								ui.Field(c, tr("Mail From"), func() {
+								ui.Field(c, locales.MailFrom(), func() {
 									ui.TextInput(c.Key("nf-from"), &nf.mailFrom)
 								})
-								ui.Field(c, tr("Mail To"), func() {
+								ui.Field(c, locales.MailTo(), func() {
 									ui.TextInput(c.Key("nf-to"), &nf.mailTo)
 								})
 							case "pushover":
-								ui.Field(c, tr("Pushover App Token"), func() {
+								ui.Field(c, locales.PushoverAppToken(), func() {
 									ui.TextInput(c.Key("nf-po-tok"), &nf.pushToken).Password()
 								})
-								ui.Field(c, tr("Pushover User Key"), func() {
+								ui.Field(c, locales.PushoverUserKey(), func() {
 									ui.TextInput(c.Key("nf-po-uk"), &nf.pushUserKey)
 								})
 							}
 						})
 						ui.Row(c).Gap(8).Justify(ui.End).Padding(4, 0, 0, 0).Children(func() {
-							ui.Button(c, tr("Send Test")).OnClick(func() {
+							ui.Button(c, locales.SendTest()).OnClick(func() {
 								a.saveOrTestNotificationAction(true)
 							})
-							ui.PrimaryButton(c, tr("Save Profile")).Disabled(strings.TrimSpace(nf.name) == "").OnClick(func() {
+							ui.PrimaryButton(c, locales.SaveProfile()).Disabled(strings.TrimSpace(nf.name) == "").OnClick(func() {
 								a.saveOrTestNotificationAction(false)
 							})
 						})
@@ -543,7 +529,7 @@ func (a *App) saveRepoDescriptionAction(desc string) {
 			return
 		}
 		a.manager.RefreshRepo(ctx, repoID, false)
-		a.toast(tr("Settings saved"), false)
+		a.toast(locales.SettingsSaved(), false)
 	}()
 }
 
@@ -553,7 +539,7 @@ func (a *App) disconnectRepoAction() {
 		return
 	}
 	go func() {
-		if !a.confirmDestructive(tr("Disconnect Repository")+"?", tr("Disconnect Repository")) {
+		if !a.confirmDestructive(locales.DisconnectRepository()+"?", locales.DisconnectRepository()) {
 			return
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -598,7 +584,7 @@ func (a *App) saveThrottleAction() {
 			return
 		}
 		a.manager.RefreshRepo(ctx, repoID, true)
-		a.toast(tr("Throttle limits updated"), false)
+		a.toast(locales.ThrottleLimitsUpdated(), false)
 	}()
 }
 
@@ -626,7 +612,7 @@ func (a *App) saveMaintenanceAction() {
 			return
 		}
 		a.manager.RefreshMaintenanceAndStats(context.Background(), repoID)
-		a.toast(tr("Settings saved"), false)
+		a.toast(locales.SettingsSaved(), false)
 	}()
 }
 
@@ -650,7 +636,7 @@ func (a *App) runMaintenanceAction(full bool) {
 			return
 		}
 		a.manager.RefreshMaintenanceAndStats(context.Background(), repoID)
-		a.toast(tr("Maintenance completed"), false)
+		a.toast(locales.MaintenanceCompleted(), false)
 	}()
 }
 
@@ -710,7 +696,7 @@ func (a *App) saveOrTestNotificationAction(testOnly bool) {
 				a.toast(err.Error(), true)
 				return
 			}
-			a.toast(tr("Test notification sent"), false)
+			a.toast(locales.TestNotificationSent(), false)
 			return
 		}
 		if err := cli.SaveNotificationProfile(ctx, payload); err != nil {
@@ -722,7 +708,7 @@ func (a *App) saveOrTestNotificationAction(testOnly bool) {
 			a.notifyForm.smtpPassword = ""
 			a.notifyForm.pushToken = ""
 		})
-		a.toast(tr("Notification profile saved"), false)
+		a.toast(locales.NotificationProfileSaved(), false)
 	}()
 }
 
@@ -732,7 +718,7 @@ func (a *App) deleteNotificationProfileAction(name string) {
 		return
 	}
 	go func() {
-		if !a.confirmDestructive(tr("Delete")+" "+name+"?", tr("Delete")) {
+		if !a.confirmDestructive(locales.Delete()+" "+name+"?", locales.Delete()) {
 			return
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -747,7 +733,7 @@ func (a *App) deleteNotificationProfileAction(name string) {
 			return
 		}
 		a.manager.RefreshRepo(ctx, repoID, true)
-		a.toast(tr("Notification profile deleted"), false)
+		a.toast(locales.NotificationProfileDeleted(), false)
 	}()
 }
 
@@ -865,17 +851,17 @@ func (a *App) renderSettingsView(c *ui.Context) {
 		ui.Column(c).MaxWidth(680).Gap(16).Children(func() {
 			// Appearance, Accent Color, Language & UI Scale (applies immediately!)
 			card(c, func() {
-				ui.Text(c, tr("Appearance & Language")).FontSize(14).FontWeight(600)
+				ui.Text(c, locales.AppearanceLanguage()).FontSize(14).FontWeight(600)
 				ui.Form(c, func() {
-					ui.Field(c, tr("Appearance"), func() {
+					ui.Field(c, locales.Appearance(), func() {
 						ui.Row(c).Children(func() {
-							if ui.Segmented(c.Key("set-theme"), &a.settingsThemeSeg, tr("Follow System"), tr("Light"), tr("Dark")).
-								Label(tr("Appearance")).Changed() {
+							if ui.Segmented(c.Key("set-theme"), &a.settingsThemeSeg, locales.FollowSystem(), locales.Light(), locales.Dark()).
+								Label(locales.Appearance()).Changed() {
 								a.applyAppearanceImmediately()
 							}
 						})
 					})
-					ui.Field(c, tr("Accent Color"), func() {
+					ui.Field(c, locales.AccentColor(), func() {
 						activeOpt := resolveAccentOption(a.settings.AccentColor)
 						ui.Row(c).AlignItems(ui.Center).Gap(10).Wrap().Children(func() {
 							for _, opt := range accentOptions {
@@ -899,8 +885,8 @@ func (a *App) renderSettingsView(c *ui.Context) {
 									Justify(ui.Center).
 									Cursor(ui.CursorPointer).
 									Role(ui.RoleButton).
-									Label(tr(optCopy.LabelKey)).
-									Tooltip(tr(optCopy.LabelKey)).
+									Label(optCopy.Label()).
+									Tooltip(optCopy.Label()).
 									OnClick(func() {
 										a.applyAccentImmediately(optCopy.Key)
 									}).
@@ -910,14 +896,14 @@ func (a *App) renderSettingsView(c *ui.Context) {
 										}
 									})
 							}
-							ui.Text(c, tr(activeOpt.LabelKey)).FontSize(12).TextColor(p.muted).Margin(0, 0, 0, 4)
+							ui.Text(c, activeOpt.Label()).FontSize(12).TextColor(p.muted).Margin(0, 0, 0, 4)
 						})
 					})
-					ui.Field(c, tr("Display Language"), func() {
+					ui.Field(c, locales.DisplayLanguage(), func() {
 						langLabels := make([]string, len(languageChoices))
 						for i, ch := range languageChoices {
 							if ch.Label == "" {
-								langLabels[i] = tr("Follow System")
+								langLabels[i] = locales.FollowSystem()
 							} else {
 								langLabels[i] = ch.Label
 							}
@@ -925,7 +911,7 @@ func (a *App) renderSettingsView(c *ui.Context) {
 						idx := min(max(a.settingsLangSeg, 0), len(langLabels)-1)
 						curLangLabel := langLabels[idx]
 						ui.Row(c).Children(func() {
-							if ui.Select(c.Key("set-lang"), &curLangLabel, langLabels).Label(tr("Display Language")).Width(210).Changed() {
+							if ui.Select(c.Key("set-lang"), &curLangLabel, langLabels).Label(locales.DisplayLanguage()).Width(210).Changed() {
 								for i, lbl := range langLabels {
 									if lbl == curLangLabel {
 										a.settingsLangSeg = i
@@ -936,10 +922,10 @@ func (a *App) renderSettingsView(c *ui.Context) {
 							}
 						})
 					})
-					ui.Field(c, tr("Interface & Font Size"), func() {
+					ui.Field(c, locales.InterfaceFontSize(), func() {
 						ui.Row(c).Children(func() {
-							if ui.Segmented(c.Key("set-scale"), &a.settingsScaleSeg, tr("Small"), tr("Medium"), tr("Large")).
-								Label(tr("Interface & Font Size")).Changed() {
+							if ui.Segmented(c.Key("set-scale"), &a.settingsScaleSeg, locales.Small(), locales.Medium(), locales.Large()).
+								Label(locales.InterfaceFontSize()).Changed() {
 								a.applyUIScaleImmediately()
 							}
 						})
@@ -949,8 +935,8 @@ func (a *App) renderSettingsView(c *ui.Context) {
 
 			// Desktop Behavior
 			card(c, func() {
-				ui.Text(c, tr("Desktop Behavior")).FontSize(14).FontWeight(600)
-				if ui.Checkbox(c, &a.settings.OpenAtLogin, tr("Launch at system login")).Changed() {
+				ui.Text(c, locales.DesktopBehavior()).FontSize(14).FontWeight(600)
+				if ui.Checkbox(c, &a.settings.OpenAtLogin, locales.LaunchAtSystemLogin()).Changed() {
 					if a.desktopRunning {
 						if err := mygo.App.SetOpenAtLogin(a.settings.OpenAtLogin); err != nil {
 							a.settings.OpenAtLogin = mygo.App.OpenAtLogin()
@@ -963,65 +949,65 @@ func (a *App) renderSettingsView(c *ui.Context) {
 					}
 					_ = config.Save(a.userDataDir, a.settings)
 				}
-				trayLabel := tr("Show icon in system tray")
+				trayLabel := locales.ShowIconInSystemTray()
 				if runtime.GOOS == "darwin" {
-					trayLabel = tr("Show icon in menu bar")
+					trayLabel = locales.ShowIconInMenuBar()
 				}
 				if ui.Checkbox(c, &a.settings.ShowInMenuBar, trayLabel).Changed() {
 					a.syncTrayVisibility()
 					_ = config.Save(a.userDataDir, a.settings)
 				}
-				if ui.Checkbox(c, &a.settings.CloseToTray, tr("Keep running in background when window closes")).Changed() {
+				if ui.Checkbox(c, &a.settings.CloseToTray, locales.KeepRunningInBackgroundWhenWindowCloses()).Changed() {
 					_ = config.Save(a.userDataDir, a.settings)
 				}
-				if ui.Checkbox(c, &a.settings.Notify, tr("Show desktop notifications for Kopia events")).Changed() {
+				if ui.Checkbox(c, &a.settings.Notify, locales.ShowDesktopNotificationsForKopiaEvents()).Changed() {
 					a.notifyAtom.Store(a.settings.Notify)
 					_ = config.Save(a.userDataDir, a.settings)
 				}
-				if ui.Checkbox(c, &a.settings.AutoIndex, tr("Automatically update search index after backups")).Changed() {
+				if ui.Checkbox(c, &a.settings.AutoIndex, locales.AutomaticallyUpdateSearchIndexAfterBackups()).Changed() {
 					_ = config.Save(a.userDataDir, a.settings)
 				}
 			})
 
 			// Kopia Engine Paths
 			card(c, func() {
-				ui.Text(c, tr("Kopia Engine")).FontSize(14).FontWeight(600)
+				ui.Text(c, locales.KopiaEngine()).FontSize(14).FontWeight(600)
 				det := a.detectedKopia
 				if det == "" {
-					det = tr("Not detected")
+					det = locales.NotDetected()
 				}
 				detRclone := a.detectedRclone
 				if detRclone == "" {
-					detRclone = tr("Not detected")
+					detRclone = locales.NotDetected()
 				}
 				ui.Form(c, func() {
-					ui.Field(c, tr("Kopia Binary Path"), func() {
+					ui.Field(c, locales.KopiaBinaryPath(), func() {
 						ui.Row(c).Gap(8).Children(func() {
 							ui.TextInput(c.Key("set-kopia-bin"), &a.settingsKopiaBin).Placeholder(config.ExampleKopiaBinaryPath()).Grow(1)
 							if a.desktopRunning {
-								if ui.Button(c, tr("Browse…")).Clicked() {
+								if ui.Button(c, locales.BrowsePicker()).Clicked() {
 									go a.pickFileInto(&a.settingsKopiaBin)
 								}
 							}
 						})
-					}).Description(trf("Leave blank to auto-detect (currently: %s)", det))
+					}).Description(locales.AutoDetectBinaryHint(det))
 
-					ui.Field(c, tr("Rclone Binary Path"), func() {
+					ui.Field(c, locales.RcloneBinaryPath(), func() {
 						ui.Row(c).Gap(8).Children(func() {
 							ui.TextInput(c.Key("set-rclone-bin"), &a.settingsRcloneBin).Placeholder(config.ExampleRcloneBinaryPath()).Grow(1)
 							if a.desktopRunning {
-								if ui.Button(c, tr("Browse…")).Clicked() {
+								if ui.Button(c, locales.BrowsePicker()).Clicked() {
 									go a.pickFileInto(&a.settingsRcloneBin)
 								}
 							}
 						})
-					}).Description(trf("Leave blank to auto-detect (currently: %s)", detRclone))
+					}).Description(locales.AutoDetectBinaryHint(detRclone))
 
-					ui.Field(c, tr("Kopia Config Directory"), func() {
+					ui.Field(c, locales.KopiaConfigDirectory(), func() {
 						ui.Row(c).Gap(8).Children(func() {
 							ui.TextInput(c.Key("set-cfg-dir"), &a.settingsCfgDir).Placeholder(config.DefaultKopiaConfigDir()).Grow(1)
 							if a.desktopRunning {
-								if ui.Button(c, tr("Browse…")).Clicked() {
+								if ui.Button(c, locales.BrowsePicker()).Clicked() {
 									go a.pickDirectoryInto(&a.settingsCfgDir)
 								}
 							}
@@ -1029,7 +1015,7 @@ func (a *App) renderSettingsView(c *ui.Context) {
 					})
 				})
 				ui.Row(c).Justify(ui.End).Padding(4, 0, 0, 0).Children(func() {
-					ui.PrimaryButton(c, tr("Save Settings")).OnClick(func() {
+					ui.PrimaryButton(c, locales.SaveSettings()).OnClick(func() {
 						rawKopia := config.ExpandPath(a.settingsKopiaBin)
 						rawRclone := config.ExpandPath(a.settingsRcloneBin)
 						rawCfgDir := config.ExpandPath(a.settingsCfgDir)
@@ -1069,7 +1055,7 @@ func (a *App) renderSettingsView(c *ui.Context) {
 						if wasMissingKopia && resolvedKopia != "" && a.settings.ActiveRepoID != "" {
 							a.activateRepo(a.settings.ActiveRepoID)
 						}
-						c.Toast(tr("Settings saved"))
+						c.Toast(locales.SettingsSaved())
 					})
 				})
 			})
@@ -1077,11 +1063,11 @@ func (a *App) renderSettingsView(c *ui.Context) {
 			// About & License
 			card(c, func() {
 				ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-					ui.Text(c, tr("About Mygopia")).FontSize(14).FontWeight(600)
+					ui.Text(c, locales.AboutMygopia()).FontSize(14).FontWeight(600)
 					ui.Badge(c, "v"+AppVersion+" · MIT")
 				})
 				if a.userDataDir != "" {
-					kvRow(c, tr("Data Directory"), filepath.Clean(a.userDataDir))
+					kvRow(c, locales.DataDirectory(), filepath.Clean(a.userDataDir))
 				}
 			})
 		})

@@ -10,6 +10,7 @@ import (
 
 	"mygopia/internal/config"
 	"mygopia/internal/kopia"
+	"mygopia/locales"
 )
 
 type policyFormDraft struct {
@@ -352,8 +353,8 @@ func (a *App) renderPolicyTargetsSidebar(c *ui.Context, st kopia.RepoSnapshotSta
 
 	ui.Column(c).Fill().Padding(12).Gap(8).Background(p.cardBg).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, tr("Policy Targets")).FontSize(12).FontWeight(600).TextColor(p.muted).Grow(1)
-			if ui.Button(c, "").Label(tr("Add Path Policy")).Tooltip(tr("Add Path Policy")).Padding(4, 6).Radius(6).Children(func() {
+			ui.Text(c, locales.PolicyTargets()).FontSize(12).FontWeight(600).TextColor(p.muted).Grow(1)
+			if ui.Button(c, "").Label(locales.AddPathPolicy()).Tooltip(locales.AddPathPolicy()).Padding(4, 6).Radius(6).Children(func() {
 				ui.Icon(c, iconPlus).FontSize(13)
 			}).Clicked() {
 				a.newPolicyFolderPath = ""
@@ -367,7 +368,7 @@ func (a *App) renderPolicyTargetsSidebar(c *ui.Context, st kopia.RepoSnapshotSta
 					tCopy := tgt
 					key := tCopy.String()
 					selected := key == a.policyTargetStr
-					label := tr("Global Policy")
+					label := locales.GlobalPolicy()
 					sub := "(global)"
 					if !tCopy.IsGlobal() {
 						if tCopy.Path != "" {
@@ -418,7 +419,7 @@ func (a *App) renderPolicyEditorPane(c *ui.Context, st kopia.RepoSnapshotState, 
 	ui.Column(c).Fill().Padding(16, 20).Gap(12).Children(func() {
 		// Header bar
 		ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-			title := tr("Global Policy")
+			title := locales.GlobalPolicy()
 			if !target.IsGlobal() {
 				if target.Path != "" {
 					title = target.Path
@@ -428,31 +429,31 @@ func (a *App) renderPolicyEditorPane(c *ui.Context, st kopia.RepoSnapshotState, 
 			}
 			ui.Text(c, title).FontSize(15).FontWeight(600).SingleLine()
 			if isDirty {
-				statusPill(c, tr("Unsaved changes"), c.Theme().Warning, p.warningSoft)
+				statusPill(c, locales.UnsavedChanges(), c.Theme().Warning, p.warningSoft)
 			}
 			ui.Spacer(c)
 
 			if !target.IsGlobal() {
-				ui.Button(c, tr("Delete Override")).TextColor(c.Theme().Danger).OnClick(func() {
+				ui.Button(c, locales.DeleteOverride()).TextColor(c.Theme().Danger).OnClick(func() {
 					a.deletePolicyAction(target)
 				})
 			}
-			ui.Button(c, tr("Reset Changes")).Disabled(!isDirty).OnClick(func() {
+			ui.Button(c, locales.ResetChanges()).Disabled(!isDirty).OnClick(func() {
 				a.policyDraft = a.policyCleanDraft
 				a.loadPolicyTargetAsync(target)
 			})
-			ui.PrimaryButton(c, tr("Save Policy")).OnClick(func() {
+			ui.PrimaryButton(c, locales.SavePolicy()).OnClick(func() {
 				a.savePolicyAction(target)
 			})
 		})
 
 		ui.Tabs(c, &a.policyTab,
-			tr("Retention"),
-			tr("Schedule"),
-			tr("Files & Ignores"),
-			tr("Compression"),
-			tr("Upload & Errors"),
-			tr("Actions & Logging"),
+			locales.Retention(),
+			locales.Schedule(),
+			locales.FilesIgnores(),
+			locales.Compression(),
+			locales.UploadErrors(),
+			locales.ActionsLogging(),
 		)
 
 		ui.Scroll(c.Key("pol-editor-scroll")).Grow(1).Padding(0, 4, 8, 0).Children(func() {
@@ -460,35 +461,35 @@ func (a *App) renderPolicyEditorPane(c *ui.Context, st kopia.RepoSnapshotState, 
 				switch a.policyTab {
 				case 0:
 					ui.Form(c, func() {
-						ui.Field(c, tr("Keep Latest Snapshots"), func() {
+						ui.Field(c, locales.KeepLatestSnapshots(), func() {
 							ui.NumberInput(c.Key("ret-latest"), &d.keepLatest, 0, 9999, 1).Width(150)
-						}).Description(trf("Leave 0 to inherit from parent policy. Effective value: %s", effIntStr(eff, func(p *kopia.Policy) *int { return p.RetentionPolicy.KeepLatest })))
-						ui.Field(c, tr("Keep Hourly"), func() {
+						}).Description(locales.PolicyInheritZeroEffective(effIntStr(eff, func(p *kopia.Policy) *int { return p.RetentionPolicy.KeepLatest })))
+						ui.Field(c, locales.KeepHourly(), func() {
 							ui.NumberInput(c.Key("ret-hourly"), &d.keepHourly, 0, 9999, 1).Width(150)
-						}).Description(trf("Leave 0 to inherit from parent policy. Effective value: %s", effIntStr(eff, func(p *kopia.Policy) *int { return p.RetentionPolicy.KeepHourly })))
-						ui.Field(c, tr("Keep Daily"), func() {
+						}).Description(locales.PolicyInheritZeroEffective(effIntStr(eff, func(p *kopia.Policy) *int { return p.RetentionPolicy.KeepHourly })))
+						ui.Field(c, locales.KeepDaily(), func() {
 							ui.NumberInput(c.Key("ret-daily"), &d.keepDaily, 0, 9999, 1).Width(150)
-						}).Description(trf("Leave 0 to inherit from parent policy. Effective value: %s", effIntStr(eff, func(p *kopia.Policy) *int { return p.RetentionPolicy.KeepDaily })))
-						ui.Field(c, tr("Keep Weekly"), func() {
+						}).Description(locales.PolicyInheritZeroEffective(effIntStr(eff, func(p *kopia.Policy) *int { return p.RetentionPolicy.KeepDaily })))
+						ui.Field(c, locales.KeepWeekly(), func() {
 							ui.NumberInput(c.Key("ret-weekly"), &d.keepWeekly, 0, 9999, 1).Width(150)
-						}).Description(trf("Leave 0 to inherit from parent policy. Effective value: %s", effIntStr(eff, func(p *kopia.Policy) *int { return p.RetentionPolicy.KeepWeekly })))
-						ui.Field(c, tr("Keep Monthly"), func() {
+						}).Description(locales.PolicyInheritZeroEffective(effIntStr(eff, func(p *kopia.Policy) *int { return p.RetentionPolicy.KeepWeekly })))
+						ui.Field(c, locales.KeepMonthly(), func() {
 							ui.NumberInput(c.Key("ret-monthly"), &d.keepMonthly, 0, 9999, 1).Width(150)
-						}).Description(trf("Leave 0 to inherit from parent policy. Effective value: %s", effIntStr(eff, func(p *kopia.Policy) *int { return p.RetentionPolicy.KeepMonthly })))
-						ui.Field(c, tr("Keep Annual"), func() {
+						}).Description(locales.PolicyInheritZeroEffective(effIntStr(eff, func(p *kopia.Policy) *int { return p.RetentionPolicy.KeepMonthly })))
+						ui.Field(c, locales.KeepAnnual(), func() {
 							ui.NumberInput(c.Key("ret-annual"), &d.keepAnnual, 0, 9999, 1).Width(150)
-						}).Description(trf("Leave 0 to inherit from parent policy. Effective value: %s", effIntStr(eff, func(p *kopia.Policy) *int { return p.RetentionPolicy.KeepAnnual })))
+						}).Description(locales.PolicyInheritZeroEffective(effIntStr(eff, func(p *kopia.Policy) *int { return p.RetentionPolicy.KeepAnnual })))
 						ui.Field(c, "", func() {
-							ui.Checkbox(c, &d.ignoreIdent, tr("Ignore Identical Snapshots"))
+							ui.Checkbox(c, &d.ignoreIdent, locales.IgnoreIdenticalSnapshots())
 						})
 					})
 
 				case 1:
 					ui.Form(c, func() {
 						ui.Field(c, "", func() {
-							ui.Checkbox(c, &d.manual, tr("Manual Backups Only"))
+							ui.Checkbox(c, &d.manual, locales.ManualBackupsOnly())
 						})
-						ui.Field(c, tr("Backup Interval (Minutes)"), func() {
+						ui.Field(c, locales.BackupIntervalMinutes(), func() {
 							ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Children(func() {
 								ui.NumberInput(c.Key("sch-int"), &d.intervalMinutes, 0, 10080, 15).Width(96).Disabled(d.manual)
 								renderIntervalBtn := func(label string, mins float64) {
@@ -502,26 +503,26 @@ func (a *App) renderPolicyEditorPane(c *ui.Context, st kopia.RepoSnapshotState, 
 										}
 									}
 								}
-								renderIntervalBtn(tr("Every 15m"), 15)
-								renderIntervalBtn(tr("Hourly"), 60)
-								renderIntervalBtn(tr("Every 6h"), 360)
-								renderIntervalBtn(tr("Daily"), 1440)
+								renderIntervalBtn(locales.Every15m(), 15)
+								renderIntervalBtn(locales.Hourly(), 60)
+								renderIntervalBtn(locales.Every6h(), 360)
+								renderIntervalBtn(locales.Daily(), 1440)
 							})
 						})
-						ui.Field(c, tr("Fixed Times of Day (HH:MM, one per line)"), func() {
+						ui.Field(c, locales.FixedTimesOfDayHHMMOne(), func() {
 							ui.TextArea(c.Key("sch-tod"), &d.timesOfDayText).Height(72).Disabled(d.manual).Placeholder("09:00\n21:00")
 						})
-						ui.Field(c, tr("Cron Expressions (one per line)"), func() {
+						ui.Field(c, locales.CronExpressionsOnePerLine(), func() {
 							ui.TextArea(c.Key("sch-cron"), &d.cronText).Height(64).Disabled(d.manual).Placeholder("0 */4 * * *")
 						})
 						ui.Field(c, "", func() {
-							ui.Checkbox(c, &d.runMissed, tr("Run Missed Backups on Startup"))
+							ui.Checkbox(c, &d.runMissed, locales.RunMissedBackupsOnStartup())
 						})
 					})
 
 					// Upcoming schedule preview
 					ui.Box(c).Height(1).Background(p.border)
-					ui.Text(c, tr("Upcoming Scheduled Runs")).FontSize(12.5).FontWeight(600)
+					ui.Text(c, locales.UpcomingScheduledRuns()).FontSize(12.5).FontWeight(600)
 					if a.policyResolved != nil && len(a.policyResolved.UpcomingSnapshotTimes) > 0 {
 						ui.Row(c).Wrap().Gap(8).Children(func() {
 							for _, ft := range a.policyResolved.UpcomingSnapshotTimes {
@@ -529,15 +530,15 @@ func (a *App) renderPolicyEditorPane(c *ui.Context, st kopia.RepoSnapshotState, 
 							}
 						})
 					} else {
-						ui.Text(c, tr("No automatic runs scheduled")).FontSize(12).TextColor(p.muted)
+						ui.Text(c, locales.NoAutomaticRunsScheduled()).FontSize(12).TextColor(p.muted)
 					}
 
 				case 2:
 					ui.Form(c, func() {
-						ui.Field(c, tr("Ignore Rules (one pattern per line)"), func() {
+						ui.Field(c, locales.IgnoreRulesOnePatternPerLine(), func() {
 							ui.Column(c).Gap(6).Children(func() {
 								ui.TextArea(c.Key("fil-ignore"), &d.ignoreRulesText).Height(120).Font("monospace").Placeholder("node_modules/\n.DS_Store\n*.tmp")
-								if ui.Button(c, tr("Add Common Ignores")).Clicked() {
+								if ui.Button(c, locales.AddCommonIgnores()).Clicked() {
 									preset := "node_modules/\n.DS_Store\nThumbs.db\n*.tmp\n.Trash/\n__pycache__/"
 									if strings.TrimSpace(d.ignoreRulesText) == "" {
 										d.ignoreRulesText = preset
@@ -548,24 +549,24 @@ func (a *App) renderPolicyEditorPane(c *ui.Context, st kopia.RepoSnapshotState, 
 							})
 						})
 						ui.Field(c, "", func() {
-							ui.Checkbox(c, &d.noParentIgnore, tr("Do not inherit parent ignore rules"))
+							ui.Checkbox(c, &d.noParentIgnore, locales.DoNotInheritParentIgnoreRules())
 						})
-						ui.Field(c, tr("Dot-Ignore Files (e.g. .kopiaignore, .gitignore)"), func() {
+						ui.Field(c, locales.DotIgnoreFilesEGKopiaignoreGitignore(), func() {
 							ui.TextArea(c.Key("fil-dot"), &d.dotIgnoreText).Height(68).Font("monospace").Placeholder(".kopiaignore\n.gitignore")
 						})
-						ui.Field(c, tr("Max File Size (MB, 0 = unlimited)"), func() {
+						ui.Field(c, locales.MaxFileSizeMB0Unlimited(), func() {
 							ui.NumberInput(c.Key("fil-maxmb"), &d.maxFileSizeMB, 0, 1048576, 10).Width(160)
 						})
 						ui.Field(c, "", func() {
 							ui.Column(c).Gap(6).Children(func() {
-								ui.Checkbox(c, &d.ignoreCacheDirs, tr("Skip Cache Directories (CACHEDIR.TAG)"))
-								ui.Checkbox(c, &d.oneFileSystem, tr("Stay on One Filesystem"))
+								ui.Checkbox(c, &d.ignoreCacheDirs, locales.SkipCacheDirectoriesCachedirTAG())
+								ui.Checkbox(c, &d.oneFileSystem, locales.StayOnOneFilesystem())
 							})
 						})
 					})
 
 				case 3:
-					inheritLabel := tr("Inherit Default")
+					inheritLabel := locales.InheritDefault()
 					compAlgos := append([]string{inheritLabel, "none"}, algorithmNames(algosField(st.Algorithms, "comp"), "zstd", "zstd-fastest", "zstd-better-compression", "s2-default", "pgzip")...)
 					curComp := d.compressorName
 					if curComp == "" {
@@ -576,7 +577,7 @@ func (a *App) renderPolicyEditorPane(c *ui.Context, st kopia.RepoSnapshotState, 
 						curMeta = inheritLabel
 					}
 					ui.Form(c, func() {
-						ui.Field(c, tr("Compression Algorithm"), func() {
+						ui.Field(c, locales.CompressionAlgorithm(), func() {
 							if ui.Select(c.Key("cmp-algo"), &curComp, compAlgos).Changed() {
 								if curComp == inheritLabel {
 									d.compressorName = ""
@@ -585,7 +586,7 @@ func (a *App) renderPolicyEditorPane(c *ui.Context, st kopia.RepoSnapshotState, 
 								}
 							}
 						})
-						ui.Field(c, tr("Metadata Compression"), func() {
+						ui.Field(c, locales.MetadataCompression(), func() {
 							if ui.Select(c.Key("cmp-meta"), &curMeta, compAlgos).Changed() {
 								if curMeta == inheritLabel {
 									d.metaCompressor = ""
@@ -594,16 +595,16 @@ func (a *App) renderPolicyEditorPane(c *ui.Context, st kopia.RepoSnapshotState, 
 								}
 							}
 						})
-						ui.Field(c, tr("Min Compress Size (Bytes)"), func() {
+						ui.Field(c, locales.MinCompressSizeBytes(), func() {
 							ui.NumberInput(c.Key("cmp-min"), &d.minCompBytes, 0, 1e9, 1024).Width(180)
 						})
-						ui.Field(c, tr("Max Compress Size (Bytes, 0 = no max)"), func() {
+						ui.Field(c, locales.MaxCompressSizeBytes0NoMax(), func() {
 							ui.NumberInput(c.Key("cmp-max"), &d.maxCompBytes, 0, 1e12, 1048576).Width(180)
 						})
-						ui.Field(c, tr("Only Compress Extensions (one per line, e.g. .txt)"), func() {
+						ui.Field(c, locales.OnlyCompressExtensionsOnePerLineE(), func() {
 							ui.TextArea(c.Key("cmp-only"), &d.onlyCompText).Height(70).Font("monospace")
 						})
-						ui.Field(c, tr("Never Compress Extensions (one per line, e.g. .mp4)"), func() {
+						ui.Field(c, locales.NeverCompressExtensionsOnePerLineE(), func() {
 							ui.TextArea(c.Key("cmp-never"), &d.neverCompText).Height(70).Font("monospace").Placeholder(".mp4\n.zip\n.jpg")
 						})
 					})
@@ -611,58 +612,58 @@ func (a *App) renderPolicyEditorPane(c *ui.Context, st kopia.RepoSnapshotState, 
 				case 4:
 					isGlobalOrHost := target.IsGlobal() || target.IsHostLevel()
 					ui.Form(c, func() {
-						ui.Field(c, tr("Max Parallel File Reads"), func() {
+						ui.Field(c, locales.MaxParallelFileReads(), func() {
 							ui.NumberInput(c.Key("up-reads"), &d.maxParallelReads, 0, 128, 1).Width(150)
 						})
 						if isGlobalOrHost {
-							ui.Field(c, tr("Max Parallel Snapshots (Global/Host)"), func() {
+							ui.Field(c, locales.MaxParallelSnapshotsGlobalHost(), func() {
 								ui.NumberInput(c.Key("up-snaps"), &d.maxParallelSnaps, 0, 64, 1).Width(150)
 							})
 						}
-						ui.Field(c, tr("Parallel Upload Above Size (MB)"), func() {
+						ui.Field(c, locales.ParallelUploadAboveSizeMB(), func() {
 							ui.NumberInput(c.Key("up-above"), &d.parallelAboveMB, 0, 65536, 16).Width(150)
 						})
 						ui.Field(c, "", func() {
 							ui.Column(c).Gap(6).Children(func() {
-								ui.Checkbox(c, &d.ignoreFileErr, tr("Ignore File Read Errors"))
-								ui.Checkbox(c, &d.ignoreDirErr, tr("Ignore Directory Read Errors"))
-								ui.Checkbox(c, &d.ignoreUnknown, tr("Ignore Unknown Entry Types"))
+								ui.Checkbox(c, &d.ignoreFileErr, locales.IgnoreFileReadErrors())
+								ui.Checkbox(c, &d.ignoreDirErr, locales.IgnoreDirectoryReadErrors())
+								ui.Checkbox(c, &d.ignoreUnknown, locales.IgnoreUnknownEntryTypes())
 							})
 						})
 					})
 
 				case 5:
 					ui.Column(c).Gap(4).Children(func() {
-						ui.Text(c, tr("Hook Actions")).FontSize(13).FontWeight(600)
-						ui.Text(c, tr("Enable Hook Actions on Client")).FontSize(11.5).TextColor(p.muted)
+						ui.Text(c, locales.HookActions()).FontSize(13).FontWeight(600)
+						ui.Text(c, locales.EnableHookActionsOnClient()).FontSize(11.5).TextColor(p.muted)
 					})
 					ui.Form(c, func() {
-						ui.Field(c, tr("Before Snapshot Root Script"), func() {
+						ui.Field(c, locales.BeforeSnapshotRootScript(), func() {
 							ui.TextArea(c.Key("act-before"), &d.beforeRootScript).Height(68).Font("monospace")
 						})
-						ui.Field(c, tr("After Snapshot Root Script"), func() {
+						ui.Field(c, locales.AfterSnapshotRootScript(), func() {
 							ui.TextArea(c.Key("act-after"), &d.afterRootScript).Height(68).Font("monospace")
 						})
-						ui.Field(c, tr("Hook Execution Mode"), func() {
+						ui.Field(c, locales.HookExecutionMode(), func() {
 							ui.Select(c.Key("act-mode"), &d.hookMode, []string{"optional", "essential", "async"})
 						})
-						ui.Field(c, tr("Hook Timeout (Seconds)"), func() {
+						ui.Field(c, locales.HookTimeoutSeconds(), func() {
 							ui.NumberInput(c.Key("act-timeout"), &d.hookTimeoutSec, 1, 3600, 5).Width(140)
 						})
 					})
 					ui.Box(c).Height(1).Background(p.border)
-					ui.Text(c, tr("Logging Levels")).FontSize(13).FontWeight(600)
+					ui.Text(c, locales.LoggingLevels()).FontSize(13).FontWeight(600)
 					ui.Form(c, func() {
-						ui.Field(c, tr("Directory Snapshotted Log Level (0-10)"), func() {
+						ui.Field(c, locales.DirSnapshottedLogLevel(), func() {
 							ui.NumberInput(c.Key("log-ds"), &d.logDirSnap, 0, 10, 1).Width(140)
 						})
-						ui.Field(c, tr("Directory Ignored Log Level (0-10)"), func() {
+						ui.Field(c, locales.DirIgnoredLogLevel(), func() {
 							ui.NumberInput(c.Key("log-di"), &d.logDirIgnored, 0, 10, 1).Width(140)
 						})
-						ui.Field(c, tr("Entry Snapshotted Log Level (0-10)"), func() {
+						ui.Field(c, locales.EntrySnapshottedLogLevel(), func() {
 							ui.NumberInput(c.Key("log-es"), &d.logEntrySnap, 0, 10, 1).Width(140)
 						})
-						ui.Field(c, tr("Entry Ignored Log Level (0-10)"), func() {
+						ui.Field(c, locales.EntryIgnoredLogLevel(), func() {
 							ui.NumberInput(c.Key("log-ei"), &d.logEntryIgnored, 0, 10, 1).Width(140)
 						})
 					})
@@ -679,13 +680,13 @@ func (a *App) renderPolicyModals(c *ui.Context) {
 	_, st := a.activeRepoState()
 	ui.Modal(c, &a.addPolicyModalOpen, func() {
 		ui.Column(c).Width(440).Gap(16).Children(func() {
-			ui.Text(c, tr("Add Path Policy")).FontSize(15.5).FontWeight(600)
+			ui.Text(c, locales.AddPathPolicy()).FontSize(15.5).FontWeight(600)
 			ui.Form(c, func() {
-				ui.Field(c, tr("Target Folder Path"), func() {
+				ui.Field(c, locales.TargetFolderPath(), func() {
 					ui.Row(c).Gap(8).Children(func() {
 						ui.TextInput(c.Key("new-pol-path"), &a.newPolicyFolderPath).AutoFocus().Grow(1)
 						if a.desktopRunning {
-							if ui.Button(c, tr("Browse…")).Clicked() {
+							if ui.Button(c, locales.BrowsePicker()).Clicked() {
 								go a.pickDirectoryInto(&a.newPolicyFolderPath)
 							}
 						}
@@ -693,10 +694,10 @@ func (a *App) renderPolicyModals(c *ui.Context) {
 				})
 			})
 			ui.Row(c).Gap(8).Justify(ui.End).Padding(4, 0, 0, 0).Children(func() {
-				if ui.Button(c, tr("Cancel")).Clicked() {
+				if ui.Button(c, locales.Cancel()).Clicked() {
 					a.addPolicyModalOpen = false
 				}
-				ui.PrimaryButton(c, tr("Apply")).Disabled(strings.TrimSpace(a.newPolicyFolderPath) == "").OnClick(func() {
+				ui.PrimaryButton(c, locales.Apply()).Disabled(strings.TrimSpace(a.newPolicyFolderPath) == "").OnClick(func() {
 					tgt := parseTargetKey(filepath.Clean(config.ExpandPath(a.newPolicyFolderPath)), st)
 					a.addPolicyModalOpen = false
 					a.policyTargetStr = tgt.String()
@@ -729,7 +730,7 @@ func (a *App) savePolicyAction(target kopia.SourceInfo) {
 		a.uiUpdate(func() {
 			a.loadPolicyTargetAsync(target)
 		})
-		a.toast(tr("Policy saved"), false)
+		a.toast(locales.PolicySaved(), false)
 	}()
 }
 
@@ -743,7 +744,7 @@ func (a *App) deletePolicyAction(target kopia.SourceInfo) {
 		label = target.Path
 	}
 	go func() {
-		if !a.confirmDestructive(tr("Delete Override")+": "+label+"?", tr("Delete")) {
+		if !a.confirmDestructive(locales.DeleteOverride()+": "+label+"?", locales.Delete()) {
 			return
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -762,7 +763,7 @@ func (a *App) deletePolicyAction(target kopia.SourceInfo) {
 			a.policyTargetStr = "(global)"
 			a.policyLoadedTarget = ""
 		})
-		a.toast(tr("Policy override deleted"), false)
+		a.toast(locales.PolicyOverrideDeleted(), false)
 	}()
 }
 

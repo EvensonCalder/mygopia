@@ -18,6 +18,7 @@ import (
 	"mygopia/internal/config"
 	"mygopia/internal/index"
 	"mygopia/internal/kopia"
+	"mygopia/locales"
 )
 
 const (
@@ -39,13 +40,13 @@ const (
 
 func timeRangePresetLabels() []string {
 	return []string{
-		tr("All Time"),
-		tr("Last 24 Hours"),
-		tr("Last 7 Days"),
-		tr("Last 30 Days"),
-		tr("Last 90 Days"),
-		tr("Last 1 Year"),
-		tr("Custom Date Range"),
+		locales.AllTime(),
+		locales.Last24Hours(),
+		locales.Last7Days(),
+		locales.Last30Days(),
+		locales.Last90Days(),
+		locales.Last1Year(),
+		locales.CustomDateRange(),
 	}
 }
 
@@ -175,8 +176,8 @@ func renderDateRangeInputs(
 	}
 
 	ui.Row(c).AlignItems(ui.Center).Wrap().Gap(8).Children(func() {
-		renderOneDateField("from", tr("From"), fromDate, fromText, false)
-		renderOneDateField("to", tr("To"), toDate, toText, true)
+		renderOneDateField("from", locales.From(), fromDate, fromText, false)
+		renderOneDateField("to", locales.To(), toDate, toText, true)
 	})
 	return changed
 }
@@ -204,19 +205,19 @@ func renderPaginationBar(c *ui.Context, keyPrefix string, offset *int, pageSize,
 	endIdx := min(total, *offset+pageSize)
 
 	ui.Row(c.Key(keyPrefix+"-pager")).AlignItems(ui.Center).Gap(8).Padding(2, 2, 0, 2).Children(func() {
-		ui.Text(c, trf("Showing %d–%d of %d", startIdx, endIdx, total)).
+		ui.Text(c, locales.ShowingRangeOfTotal(startIdx, endIdx, total)).
 			FontSize(11.5).
 			FontFeatures("tnum").
 			TextColor(p.muted)
 		ui.Spacer(c)
-		if compactButton(c, tr("Prev")).Disabled(*offset <= 0).Clicked() {
+		if compactButton(c, locales.Prev()).Disabled(*offset <= 0).Clicked() {
 			*offset = max(0, *offset-pageSize)
 		}
-		ui.Text(c, trf("Page %d / %d", curPage, totalPages)).
+		ui.Text(c, locales.PageOfTotal(curPage, totalPages)).
 			FontSize(11.5).
 			FontFeatures("tnum").
 			TextColor(p.muted)
-		if compactButton(c, tr("Next")).Disabled(*offset+pageSize >= total).Clicked() {
+		if compactButton(c, locales.Next()).Disabled(*offset+pageSize >= total).Clicked() {
 			*offset = min(maxOffset, *offset+pageSize)
 		}
 	})
@@ -238,7 +239,7 @@ func snapshotYears(snaps []*kopia.Snapshot) []string {
 	}
 	slices.SortFunc(years, func(a, b int) int { return cmp.Compare(b, a) })
 	out := make([]string, 0, len(years)+1)
-	out = append(out, tr("All Years"))
+	out = append(out, locales.AllYears())
 	for _, y := range years {
 		out = append(out, strconv.Itoa(y))
 	}
@@ -898,7 +899,7 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 	p := paletteOf(c)
 	sources := st.SourceList()
 	if len(sources) == 0 {
-		emptyState(c, iconDiff, tr("No backup sources yet"), tr("Add a local folder to start encrypted, deduplicated backups."), tr("Add Folder"), func() {
+		emptyState(c, iconDiff, locales.NoBackupSourcesYet(), locales.AddALocalFolderToStartEncrypted(), locales.AddFolder(), func() {
 			a.activeNav = navBackups
 			a.addSourceModalOpen = true
 		})
@@ -980,7 +981,7 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 	var targetLabels []string
 	if hasLocal && nSnaps >= 1 {
 		targetOptionIDs = append(targetOptionIDs, diffTargetLocalDir)
-		targetLabels = append(targetLabels, tr("Current Local Folder (Next Backup)"))
+		targetLabels = append(targetLabels, locales.CurrentLocalFolderNextBackup())
 	}
 	for i, sn := range targetSnapCandidates {
 		// When only 1 snapshot exists and local folder is available, Target only needs the live local folder option (avoiding snap-0 == snap-0).
@@ -1012,7 +1013,7 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 			// Row 1: Backup Source (left) + Quick Comparison Presets (right, single non-wrapping group)
 			ui.Row(c).AlignItems(ui.Center).Wrap().Gap(8).Children(func() {
 				ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-					ui.Text(c, tr("Select Source")).FontSize(12).FontWeight(600).TextColor(p.muted)
+					ui.Text(c, locales.SelectSource()).FontSize(12).FontWeight(600).TextColor(p.muted)
 					if ui.Select(c.Key("diff-src-sel"), &curSrcLabel, srcLabels).MinWidth(0).Width(212).Changed() {
 						for i, lb := range srcLabels {
 							if lb == curSrcLabel && i < len(srcKeys) {
@@ -1043,13 +1044,13 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 							}
 						}
 						if hasLocal && len(a.diffSnapshots) >= 1 {
-							renderPresetBtn(tr("Local vs Latest"), diffPresetLocal)
+							renderPresetBtn(locales.LocalVsLatest(), diffPresetLocal)
 						}
 						if len(a.diffSnapshots) >= 2 {
-							renderPresetBtn(tr("Latest vs Previous"), diffPresetPrev)
-							renderPresetBtn(tr("Latest vs 7d Ago"), diffPreset7d)
-							renderPresetBtn(tr("Latest vs 30d Ago"), diffPreset30d)
-							renderPresetBtn(tr("Latest vs Oldest"), diffPresetOldest)
+							renderPresetBtn(locales.LatestVsPrevious(), diffPresetPrev)
+							renderPresetBtn(locales.LatestVs7dAgo(), diffPreset7d)
+							renderPresetBtn(locales.LatestVs30dAgo(), diffPreset30d)
+							renderPresetBtn(locales.LatestVsOldest(), diffPresetOldest)
 						}
 					})
 				}
@@ -1059,7 +1060,7 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 			if len(baseCandidates) >= 1 && len(targetOptionIDs) >= 1 {
 				ui.Row(c).AlignItems(ui.Center).Wrap().Gap(10).Children(func() {
 					ui.Row(c).AlignItems(ui.Center).Gap(6).Grow(1).MinWidth(240).Children(func() {
-						ui.Text(c, tr("Base Snapshot (Older)")).FontSize(12).TextColor(p.muted).Shrink(0)
+						ui.Text(c, locales.BaseSnapshotOlder()).FontSize(12).TextColor(p.muted).Shrink(0)
 						if ui.Select(c.Key("diff-base-sel"), &baseLabel, baseLabels).Grow(1).Changed() {
 							for i, lb := range baseLabels {
 								if lb == baseLabel && i < len(baseCandidates) {
@@ -1076,7 +1077,7 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 					ui.Text(c, "→").FontSize(14).FontWeight(600).TextColor(p.muted).Padding(0, 2).Shrink(0)
 
 					ui.Row(c).AlignItems(ui.Center).Gap(6).Grow(1).MinWidth(240).Children(func() {
-						ui.Text(c, tr("Target Snapshot (Newer)")).FontSize(12).TextColor(p.muted).Shrink(0)
+						ui.Text(c, locales.TargetSnapshotNewer()).FontSize(12).TextColor(p.muted).Shrink(0)
 						if ui.Select(c.Key("diff-target-sel"), &targetLabel, targetLabels).Grow(1).Changed() {
 							for i, lb := range targetLabels {
 								if lb == targetLabel && i < len(targetOptionIDs) {
@@ -1095,7 +1096,7 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 			// Row 3: Multi-Year Jumper & Snapshot Note/Time Narrowing (keeps Row 1 uncluttered)
 			if len(a.diffSnapshots) >= 2 {
 				ui.Row(c).AlignItems(ui.Center).Wrap().Gap(8).Children(func() {
-					ui.Text(c, tr("Filter Snapshots")).FontSize(12).TextColor(p.muted)
+					ui.Text(c, locales.FilterSnapshots()).FontSize(12).TextColor(p.muted)
 					if len(years) > 2 {
 						if ui.Select(c.Key("diff-year-sel"), &curYear, years).MinWidth(0).Width(108).Changed() {
 							if curYear == years[0] {
@@ -1107,7 +1108,7 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 						}
 					}
 					if ui.SearchField(c.Key("diff-snap-filter"), &a.diffSnapSearch).
-						Placeholder(tr("Filter snapshot notes or time…")).
+						Placeholder(locales.FilterSnapshotNotesOrTime()).
 						MinWidth(160).
 						Width(236).
 						Changed() {
@@ -1115,12 +1116,12 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 					}
 					if hasSnapFilter {
 						if len(matchedSnaps) == 0 {
-							statusPill(c, tr("No matching snapshots"), c.Theme().Warning, p.warningSoft)
+							statusPill(c, locales.NoMatchingSnapshots(), c.Theme().Warning, p.warningSoft)
 						} else {
-							ui.Text(c, trf("%d / %d snapshots", len(matchedSnaps), len(a.diffSnapshots))).
+							ui.Text(c, locales.FilteredOfTotalSnapshots(len(matchedSnaps), len(a.diffSnapshots))).
 								FontSize(11.5).FontFeatures("tnum").TextColor(p.muted).SingleLine()
 						}
-						if compactButton(c, tr("Reset Filters")).Clicked() {
+						if compactButton(c, locales.ResetFilters()).Clicked() {
 							a.diffYearFilter = ""
 							a.diffSnapSearch = ""
 							a.applyDiffSnapshotFilterSelection(a.filteredDiffSnapshots())
@@ -1133,27 +1134,27 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 		if a.diffLoading && len(a.diffSnapshots) == 0 {
 			card(c, func() {
 				ui.Column(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-					ui.Text(c, tr("Loading snapshots…")).TextColor(p.muted)
+					ui.Text(c, locales.LoadingSnapshots()).TextColor(p.muted)
 				})
 			}).Grow(1)
 			return
 		}
 		if len(a.diffSnapshots) == 0 || (len(a.diffSnapshots) == 1 && !hasLocal) {
 			card(c, func() {
-				emptyState(c, iconDiff, tr("Need at least 2 snapshots to compare"), "", "", nil)
+				emptyState(c, iconDiff, locales.NeedAtLeast2SnapshotsToCompare(), "", "", nil)
 			}).Grow(1)
 			return
 		}
 		if a.diffBaseSnapID == a.diffTargetSnapID {
 			card(c, func() {
-				emptyState(c, iconDiff, tr("Select two different snapshots to compare"), "", "", nil)
+				emptyState(c, iconDiff, locales.SelectTwoDifferentSnapshotsToCompare(), "", "", nil)
 			}).Grow(1)
 			return
 		}
 		if a.diffLoading && len(a.diffSummary.Entries) == 0 {
-			loadingLabel := tr("Comparing snapshots…")
+			loadingLabel := locales.ComparingSnapshots()
 			if isTargetLocal {
-				loadingLabel = tr("Comparing with local folder…")
+				loadingLabel = locales.ComparingWithLocalFolder()
 			}
 			card(c, func() {
 				ui.Column(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
@@ -1178,22 +1179,22 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 		}
 
 		ui.Row(c).Wrap().Gap(12).Children(func() {
-			metricCard(c, tr("Changed Items"), intToStr(totalChanged), trf("%s: %s", tr("Net Size Delta"), netStr))
-			metricCard(c, tr("Added Files"), "+"+intToStr(sum.AddedCount), "+"+formatBytes(sum.AddedBytes))
-			metricCard(c, tr("Modified Files"), "~"+intToStr(sum.ModifiedCount), "")
-			metricCard(c, tr("Deleted Files"), "-"+intToStr(sum.DeletedCount), "-"+formatBytes(sum.RemovedBytes))
+			metricCard(c, locales.ChangedItems(), intToStr(totalChanged), locales.LabeledValue(locales.NetSizeDelta(), netStr))
+			metricCard(c, locales.AddedFiles(), "+"+intToStr(sum.AddedCount), "+"+formatBytes(sum.AddedBytes))
+			metricCard(c, locales.ModifiedFiles(), "~"+intToStr(sum.ModifiedCount), "")
+			metricCard(c, locales.DeletedFiles(), "-"+intToStr(sum.DeletedCount), "-"+formatBytes(sum.RemovedBytes))
 		})
 
 		// Diff Filter Row
 		ui.Row(c).AlignItems(ui.Center).Wrap().Gap(6).Children(func() {
-			if ui.Segmented(c, &a.diffChangeSeg, tr("All Changes"), tr("Added"), tr("Changed"), tr("Deleted")).Changed() {
+			if ui.Segmented(c, &a.diffChangeSeg, locales.AllChanges(), locales.Added(), locales.Changed(), locales.Deleted()).Changed() {
 				a.diffPageOffset = 0
 			}
-			if ui.Segmented(c, &a.diffKindSeg, tr("All"), tr("Files"), tr("Folders")).Changed() {
+			if ui.Segmented(c, &a.diffKindSeg, locales.All(), locales.Files(), locales.Folders()).Changed() {
 				a.diffPageOffset = 0
 			}
 
-			sizeLabels := []string{tr("Any Size"), tr("> 1 MB"), tr("> 10 MB"), tr("> 100 MB"), tr("> 1 GB")}
+			sizeLabels := []string{locales.AnySize(), locales.SizeOver1MB(), locales.SizeOver10MB(), locales.SizeOver100MB(), locales.SizeOver1GB()}
 			if a.diffSizePreset < 0 || a.diffSizePreset >= len(sizeLabels) {
 				a.diffSizePreset = 0
 			}
@@ -1224,7 +1225,7 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 			}
 
 			if ui.SearchField(c.Key("diff-path-q"), &a.diffFilterQuery).
-				Placeholder(tr("Filter path, name, or time…")).
+				Placeholder(locales.FilterPathNameOrTime()).
 				Grow(1).
 				MinWidth(120).
 				Changed() {
@@ -1232,7 +1233,7 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 			}
 
 			if ui.TextInput(c.Key("diff-ext-q"), &a.diffIncludeExts).
-				Placeholder(tr("Ext: pdf, zip")).
+				Placeholder(locales.ExtPdfZIP()).
 				MinWidth(0).
 				Width(112).
 				Changed() {
@@ -1240,7 +1241,7 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 			}
 
 			if a.diffChangeSeg != 0 || a.diffKindSeg != 0 || a.diffSizePreset != 0 || a.diffTimePreset != 0 || a.diffFilterQuery != "" || a.diffIncludeExts != "" {
-				if compactButton(c, tr("Reset Filters")).Clicked() {
+				if compactButton(c, locales.ResetFilters()).Clicked() {
 					a.diffChangeSeg = 0
 					a.diffKindSeg = 0
 					a.diffSizePreset = 0
@@ -1266,9 +1267,9 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 		if len(filtered) == 0 {
 			card(c, func() {
 				if len(sum.Entries) == 0 {
-					emptyState(c, iconDiff, tr("No differences between the selected snapshots"), "", "", nil)
+					emptyState(c, iconDiff, locales.NoDifferencesBetweenTheSelectedSnapshots(), "", "", nil)
 				} else {
-					emptyState(c, iconSearch, tr("No matching items"), "", "", nil)
+					emptyState(c, iconSearch, locales.NoMatchingItems(), "", "", nil)
 				}
 			}).Grow(1)
 			return
@@ -1283,12 +1284,12 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 		pageItems := filtered[a.diffPageOffset:pageEnd]
 
 		cols := []ui.TableColumn{
-			{ID: "kind", Title: tr("Change"), Width: 92, Sortable: true},
-			{ID: "path", Title: tr("Path"), Width: 310, MinWidth: 160, Sortable: true},
-			{ID: "old", Title: tr("Old Size"), Width: 102, Align: ui.End, Sortable: true},
-			{ID: "new", Title: tr("New Size"), Width: 102, Align: ui.End, Sortable: true},
-			{ID: "delta", Title: tr("Size Delta"), Width: 110, Align: ui.End, Sortable: true},
-			{ID: "mtime", Title: tr("Modified"), Width: 172, Sortable: true},
+			{ID: "kind", Title: locales.Change(), Width: 92, Sortable: true},
+			{ID: "path", Title: locales.Path(), Width: 310, MinWidth: 160, Sortable: true},
+			{ID: "old", Title: locales.OldSize(), Width: 102, Align: ui.End, Sortable: true},
+			{ID: "new", Title: locales.NewSize(), Width: 102, Align: ui.End, Sortable: true},
+			{ID: "delta", Title: locales.SizeDelta(), Width: 110, Align: ui.End, Sortable: true},
+			{ID: "mtime", Title: locales.Modified(), Width: 172, Sortable: true},
 		}
 
 		a.diffTable.Selected = &a.diffSelectedRow
@@ -1304,11 +1305,11 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 				case 0:
 					switch ent.Kind {
 					case index.DiffAdded:
-						tableStatusPill(c, selected, "+ "+tr("Added"), c.Theme().Success, p.successSoft)
+						tableStatusPill(c, selected, "+ "+locales.Added(), c.Theme().Success, p.successSoft)
 					case index.DiffModified:
-						tableStatusPill(c, selected, "~ "+tr("Changed"), c.Theme().Warning, p.warningSoft)
+						tableStatusPill(c, selected, "~ "+locales.Changed(), c.Theme().Warning, p.warningSoft)
 					case index.DiffDeleted:
-						tableStatusPill(c, selected, "- "+tr("Deleted"), c.Theme().Danger, p.dangerSoft)
+						tableStatusPill(c, selected, "- "+locales.Deleted(), c.Theme().Danger, p.dangerSoft)
 					}
 				case 1:
 					r := ui.Row(c).AlignItems(ui.Center).Gap(7).Children(func() {
@@ -1323,7 +1324,7 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 						hasAction := false
 						if isTargetLocal && hasLocal && ent.Kind != index.DiffDeleted && a.desktopRunning {
 							hasAction = true
-							if m.Item(tr("Reveal in File Manager")).Chosen() {
+							if m.Item(locales.RevealInFileManager()).Chosen() {
 								fullPath := filepath.Join(localDir, filepath.FromSlash(ent.Path))
 								if ent.IsDir {
 									_ = mygo.Shell.OpenPath(fullPath)
@@ -1335,33 +1336,33 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 						if ent.NewObjectID != "" {
 							hasAction = true
 							if !ent.IsDir && a.desktopRunning {
-								if m.Item(tr("Save New Version…")).Chosen() {
+								if m.Item(locales.SaveNewVersion()).Chosen() {
 									go a.saveSingleObjectInteractive(a.settings.ActiveRepoID, ent.NewObjectID, ent.Name)
 								}
 							}
-							if m.Item(tr("Restore New Version…")).Chosen() {
+							if m.Item(locales.RestoreNewVersion()).Chosen() {
 								a.openRestoreModal(a.settings.ActiveRepoID, ent.NewObjectID, ent.Name)
 							}
 						}
 						if ent.OldObjectID != "" {
 							hasAction = true
 							if !ent.IsDir && a.desktopRunning {
-								if m.Item(tr("Save Old Version…")).Chosen() {
+								if m.Item(locales.SaveOldVersion()).Chosen() {
 									go a.saveSingleObjectInteractive(a.settings.ActiveRepoID, ent.OldObjectID, ent.Name)
 								}
 							}
-							if m.Item(tr("Restore Old Version…")).Chosen() {
+							if m.Item(locales.RestoreOldVersion()).Chosen() {
 								a.openRestoreModal(a.settings.ActiveRepoID, ent.OldObjectID, ent.Name)
 							}
 						}
 						if hasAction {
 							m.Separator()
 						}
-						if m.Item(tr("Copy")).Chosen() {
+						if m.Item(locales.Copy()).Chosen() {
 							if a.desktopRunning {
 								mygo.Clipboard.WriteText(ent.Path)
 							}
-							a.toast(tr("Copied to clipboard"), false)
+							a.toast(locales.CopiedToClipboard(), false)
 						}
 					})
 				case 2:

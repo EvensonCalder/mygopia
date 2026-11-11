@@ -23,6 +23,7 @@ import (
 	"mygopia/internal/config"
 	"mygopia/internal/index"
 	"mygopia/internal/kopia"
+	"mygopia/locales"
 )
 
 const sidebarRailWidth float32 = 52
@@ -390,7 +391,7 @@ func (a *App) SeedSnapshotsAndEntries(sourceStr string, snaps []*kopia.Snapshot,
 }
 
 // AppVersion is the current application version of Mygopia.
-const AppVersion = "0.3.0"
+const AppVersion = "0.3.1"
 
 // RunDesktop launches the native desktop application window, menus, tray, and lifecycle hooks.
 func RunDesktop() error {
@@ -448,6 +449,15 @@ func RunDesktop() error {
 	mygo.App.WhenReady(func() {
 		app.preferredLangs = mygo.App.PreferredLanguages()
 		setCurrentLanguage(ResolveLanguage(app.settings.Language, app.preferredLangs))
+		mygo.App.OnLocaleChanged(func(_ string) {
+			app.preferredLangs = mygo.App.PreferredLanguages()
+			setCurrentLanguage(ResolveLanguage(app.settings.Language, app.preferredLangs))
+			app.setupMenus()
+			app.refreshTrayMenu()
+			if w := app.winAtom.Load(); w != nil && !w.IsDestroyed() {
+				w.Invalidate()
+			}
+		})
 
 		// Sync OS login-item registration with persisted preference.
 		if mygo.App.OpenAtLogin() {
@@ -611,7 +621,7 @@ func (a *App) confirmDestructive(message, confirmLabel string) bool {
 		Parent:             win,
 		Type:               mygo.MessageWarning,
 		Message:            message,
-		Buttons:            []string{tr("Cancel"), confirmLabel},
+		Buttons:            []string{locales.Cancel(), confirmLabel},
 		DestructiveButtons: []int{1},
 	})
 	return err == nil && res.Button == 1
@@ -659,7 +669,7 @@ func (a *App) setupMenus() {
 				{Role: mygo.RoleAbout},
 				mygo.Separator(),
 				{
-					Label:       tr("Settings"),
+					Label:       locales.NavSettings(),
 					Accelerator: "CmdOrCtrl+,",
 					Click: func(*mygo.MenuItem, *mygo.Window) {
 						a.uiUpdate(func() { a.activeNav = navSettings })
@@ -675,68 +685,68 @@ func (a *App) setupMenus() {
 		},
 		{Role: mygo.RoleEditMenu},
 		{
-			Label: tr("View"),
+			Label: locales.View(),
 			Submenu: []*mygo.MenuItem{
 				{
-					Label:       tr("Toggle Sidebar"),
+					Label:       locales.ToggleSidebar(),
 					Accelerator: "CmdOrCtrl+B",
 					Click:       func(*mygo.MenuItem, *mygo.Window) { a.uiUpdate(func() { a.toggleSidebarCollapsed() }) },
 				},
 				mygo.Separator(),
 				{
-					Label:       tr("Backups"),
+					Label:       locales.NavBackups(),
 					Accelerator: "CmdOrCtrl+1",
 					Click:       func(*mygo.MenuItem, *mygo.Window) { a.uiUpdate(func() { a.switchNavTo(navBackups) }) },
 				},
 				{
-					Label:       tr("Snapshots"),
+					Label:       locales.NavSnapshots(),
 					Accelerator: "CmdOrCtrl+2",
 					Click:       func(*mygo.MenuItem, *mygo.Window) { a.uiUpdate(func() { a.switchNavTo(navSnapshots) }) },
 				},
 				{
-					Label:       tr("Search"),
+					Label:       locales.NavSearch(),
 					Accelerator: "CmdOrCtrl+3",
 					Click:       func(*mygo.MenuItem, *mygo.Window) { a.uiUpdate(func() { a.switchNavTo(navSearch) }) },
 				},
 				{
-					Label:       tr("Snapshot Diff"),
+					Label:       locales.NavSnapshotDiff(),
 					Accelerator: "CmdOrCtrl+4",
 					Click:       func(*mygo.MenuItem, *mygo.Window) { a.uiUpdate(func() { a.switchNavTo(navDiff) }) },
 				},
 				{
-					Label:       tr("Policies"),
+					Label:       locales.NavPolicies(),
 					Accelerator: "CmdOrCtrl+5",
 					Click:       func(*mygo.MenuItem, *mygo.Window) { a.uiUpdate(func() { a.switchNavTo(navPolicies) }) },
 				},
 				{
-					Label:       tr("Tasks & Logs"),
+					Label:       locales.NavTasksLogs(),
 					Accelerator: "CmdOrCtrl+6",
 					Click:       func(*mygo.MenuItem, *mygo.Window) { a.uiUpdate(func() { a.switchNavTo(navTasks) }) },
 				},
 				{
-					Label:       tr("Repository"),
+					Label:       locales.NavRepository(),
 					Accelerator: "CmdOrCtrl+7",
 					Click:       func(*mygo.MenuItem, *mygo.Window) { a.uiUpdate(func() { a.switchNavTo(navRepo) }) },
 				},
 				mygo.Separator(),
 				{
-					Label:       tr("Zoom In"),
+					Label:       locales.ZoomIn(),
 					Accelerator: "CmdOrCtrl+=",
 					Click:       func(*mygo.MenuItem, *mygo.Window) { a.uiUpdate(func() { a.stepUIScale(1) }) },
 				},
 				{
-					Label:       tr("Zoom Out"),
+					Label:       locales.ZoomOut(),
 					Accelerator: "CmdOrCtrl+-",
 					Click:       func(*mygo.MenuItem, *mygo.Window) { a.uiUpdate(func() { a.stepUIScale(-1) }) },
 				},
 				{
-					Label:       tr("Default Size"),
+					Label:       locales.DefaultSize(),
 					Accelerator: "CmdOrCtrl+0",
 					Click:       func(*mygo.MenuItem, *mygo.Window) { a.uiUpdate(func() { a.stepUIScale(0) }) },
 				},
 				mygo.Separator(),
 				{
-					Label:       tr("Refresh"),
+					Label:       locales.Refresh(),
 					Accelerator: "CmdOrCtrl+R",
 					Click:       func(*mygo.MenuItem, *mygo.Window) { a.uiUpdate(func() { a.triggerManualRefresh() }) },
 				},
@@ -797,18 +807,18 @@ func (a *App) refreshTrayMenu() {
 func (a *App) buildTrayMenu() *mygo.Menu {
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{
-			Label: tr("Open Mygopia"),
+			Label: locales.OpenMygopia(),
 			Click: func(*mygo.MenuItem, *mygo.Window) { a.showMainWindow() },
 		},
 		{
-			Label: tr("Backup All Sources"),
+			Label: locales.BackupAllSources(),
 			Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.uiUpdate(func() { a.triggerSnapshotAction(nil) })
 			},
 		},
 		mygo.Separator(),
 		{
-			Label: tr("Quit"),
+			Label: locales.Quit(),
 			Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() },
 		},
 	})
@@ -909,7 +919,7 @@ func (a *App) confirmRemoveRepoProfileAction(repoID, repoName string) {
 		return
 	}
 	go func() {
-		if !a.confirmDestructive(tr("Remove from List")+": "+repoName+"?", tr("Remove")) {
+		if !a.confirmDestructive(locales.RemoveFromList()+": "+repoName+"?", locales.Remove()) {
 			return
 		}
 		a.uiUpdate(func() {
@@ -1039,27 +1049,27 @@ func (a *App) activeRefreshStatus(prof config.RepoProfile, st kopia.RepoSnapshot
 		if a.refreshPhase != "" {
 			return true, a.refreshPhase
 		}
-		return true, tr("Refreshing…")
+		return true, locales.Refreshing()
 	}
 	if a.diffLoading {
 		if a.diffTargetSnapID == diffTargetLocalDir {
-			return true, tr("Comparing with local folder…")
+			return true, locales.ComparingWithLocalFolder()
 		}
-		return true, tr("Comparing snapshots…")
+		return true, locales.ComparingSnapshots()
 	}
 	if a.snapLoading || a.browserLoading {
-		return true, tr("Loading snapshots…")
+		return true, locales.LoadingSnapshots()
 	}
 	if prof.ID != "" {
 		if idxStats, ok := a.indexer.Stats(prof.ID); ok && idxStats.Indexing {
 			if idxStats.ProgressDirs > 0 {
-				return true, trf("Indexing (%d dirs)…", idxStats.ProgressDirs)
+				return true, locales.IndexingDirsProgress(int(idxStats.ProgressDirs))
 			}
-			return true, tr("Indexing…")
+			return true, locales.Indexing()
 		}
 	}
 	if st.Starting {
-		return true, tr("Starting…")
+		return true, locales.Starting()
 	}
 	return false, ""
 }
@@ -1089,14 +1099,14 @@ func (a *App) triggerManualRefresh() {
 		if a.activeNav == navDiff {
 			a.runSnapshotDiffAsync()
 		}
-		a.toast(tr("Refreshed"), false)
+		a.toast(locales.Refreshed(), false)
 		return
 	}
 
 	a.refreshSeq++
 	seq := a.refreshSeq
 	a.refreshing = true
-	a.refreshPhase = tr("Refreshing…")
+	a.refreshPhase = locales.Refreshing()
 	activeNav := a.activeNav
 	selectedTaskID := a.selectedTaskID
 	autoIndex := a.settings.AutoIndex
@@ -1150,7 +1160,7 @@ func (a *App) triggerManualRefresh() {
 		// Phase 2: Sync repository index blobs from storage & refresh maintenance/stats if needed
 		a.uiUpdate(func() {
 			if a.refreshSeq == seq {
-				a.refreshPhase = tr("Syncing repository…")
+				a.refreshPhase = locales.SyncingRepository()
 			}
 		})
 		_ = cli.SyncRepo(ctx)
@@ -1178,7 +1188,7 @@ func (a *App) triggerManualRefresh() {
 		if autoIndex || activeNav == navSearch {
 			a.uiUpdate(func() {
 				if a.refreshSeq == seq {
-					a.refreshPhase = tr("Indexing…")
+					a.refreshPhase = locales.Indexing()
 				}
 			})
 			_ = a.indexer.IndexRepo(ctx, repoID, prof.Name, cli)
@@ -1190,7 +1200,7 @@ func (a *App) triggerManualRefresh() {
 		}
 
 		if ctx.Err() == nil {
-			a.toast(tr("Refreshed"), false)
+			a.toast(locales.Refreshed(), false)
 		}
 	}()
 }
@@ -1345,15 +1355,17 @@ func (a *App) switchNavTo(nav string) {
 	}
 }
 
-var allSectionTitleKeys = []string{
-	"Backups",
-	"Snapshots",
-	"Search",
-	"Snapshot Diff",
-	"Policies",
-	"Tasks & Logs",
-	"Repository",
-	"Settings",
+func allSectionTitles() []string {
+	return []string{
+		locales.NavBackups(),
+		locales.NavSnapshots(),
+		locales.NavSearch(),
+		locales.NavSnapshotDiff(),
+		locales.NavPolicies(),
+		locales.NavTasksLogs(),
+		locales.NavRepository(),
+		locales.NavSettings(),
+	}
 }
 
 // sectionTitleSlotWidth computes a constant pixel-exact slot width for the top toolbar's
@@ -1361,8 +1373,8 @@ var allSectionTitleKeys = []string{
 // of the adjacent repository name & status badge when switching tabs.
 func sectionTitleSlotWidth(c *ui.Context) float32 {
 	var maxW float32 = 64
-	for _, k := range allSectionTitleKeys {
-		w, _ := c.MeasureText(0, ui.Span{Text: tr(k), Size: 15, Weight: 600})
+	for _, title := range allSectionTitles() {
+		w, _ := c.MeasureText(0, ui.Span{Text: title, Size: 15, Weight: 600})
 		if w > maxW {
 			maxW = w
 		}
@@ -1379,8 +1391,8 @@ func modShortcutHint(key string) string {
 
 func (a *App) adaptiveSidebarWidth(c *ui.Context) float32 {
 	w := float32(162)
-	for _, k := range allSectionTitleKeys {
-		tw, _ := c.MeasureText(0, ui.Span{Text: tr(k), Size: 13, Weight: 500})
+	for _, title := range allSectionTitles() {
+		tw, _ := c.MeasureText(0, ui.Span{Text: title, Size: 13, Weight: 500})
 		need := tw + 74 // 8 left pad + 36 icon slot + label + optional badge + 10 right pad
 		if need > w {
 			w = need
@@ -1470,9 +1482,9 @@ func (a *App) renderSidebarNavBody(c *ui.Context, collapsed bool) {
 		} else if activeState.Starting {
 			dotColor = c.Theme().Warning
 		}
-		repoTip := tr("Repositories")
+		repoTip := locales.Repositories()
 		if prof.Name != "" {
-			repoTip = prof.Name + " — " + tr("Repositories")
+			repoTip = prof.Name + " — " + locales.Repositories()
 		}
 
 		attachRepoMenus := func(btn ui.Element) {
@@ -1487,19 +1499,19 @@ func (a *App) renderSidebarNavBody(c *ui.Context, collapsed bool) {
 				if len(a.settings.Repositories) > 0 {
 					m.Separator()
 				}
-				if m.Item(tr("Add Repository")).Chosen() {
+				if m.Item(locales.AddRepository()).Chosen() {
 					a.openConnectWizard(true)
 				}
 				if len(a.settings.Repositories) > 1 && prof.ID != "" {
 					m.Separator()
-					if m.Item(tr("Remove from List")).Chosen() {
+					if m.Item(locales.RemoveFromList()).Chosen() {
 						a.confirmRemoveRepoProfileAction(prof.ID, prof.Name)
 					}
 				}
 			})
 			if len(a.settings.Repositories) > 1 && prof.ID != "" {
 				btn.ContextMenu(func(m *ui.Menu) {
-					if m.Item(tr("Remove from List")).Chosen() {
+					if m.Item(locales.RemoveFromList()).Chosen() {
 						a.confirmRemoveRepoProfileAction(prof.ID, prof.Name)
 					}
 				})
@@ -1521,7 +1533,7 @@ func (a *App) renderSidebarNavBody(c *ui.Context, collapsed bool) {
 				Radius(8).
 				AlignItems(ui.Center).
 				Background(ui.Transparent).
-				Label(tr("Repositories")).
+				Label(locales.Repositories()).
 				Tooltip(repoTip)
 			if repoBtn.Hovered() {
 				repoBtn.Background(c.Theme().SurfaceHover)
@@ -1538,7 +1550,7 @@ func (a *App) renderSidebarNavBody(c *ui.Context, collapsed bool) {
 					Radius(8).
 					AlignItems(ui.Center).
 					Background(p.cardBg).
-					Label(tr("Repositories")).
+					Label(locales.Repositories()).
 					Tooltip(repoTip)
 				if repoBtn.Hovered() {
 					repoBtn.Background(c.Theme().SurfaceHover)
@@ -1547,7 +1559,7 @@ func (a *App) renderSidebarNavBody(c *ui.Context, collapsed bool) {
 					renderRepoIconSlot()
 					dispName := prof.Name
 					if dispName == "" {
-						dispName = tr("Repositories")
+						dispName = locales.Repositories()
 					}
 					ui.Text(c, dispName).FontSize(12.5).FontWeight(600).Grow(1).SingleLine()
 					ui.Box(c).Width(4).Shrink(0)
@@ -1557,8 +1569,8 @@ func (a *App) renderSidebarNavBody(c *ui.Context, collapsed bool) {
 				attachRepoMenus(repoBtn)
 
 				if ui.Button(c, "").
-					Label(tr("Add Repository")).
-					Tooltip(tr("Add Repository")).
+					Label(locales.AddRepository()).
+					Tooltip(locales.AddRepository()).
 					Size(30, 30).
 					Shrink(0).
 					Padding(0).
@@ -1630,18 +1642,18 @@ func (a *App) renderSidebarNavBody(c *ui.Context, collapsed bool) {
 			taskBadge = intToStr(active)
 		}
 
-		navItem(navBackups, iconBackups, tr("Backups"), srcBadge, false)
-		navItem(navSnapshots, iconSnapshots, tr("Snapshots"), "", false)
-		navItem(navSearch, iconSearch, tr("Search"), "", false)
-		navItem(navDiff, iconDiff, tr("Snapshot Diff"), "", false)
-		navItem(navPolicies, iconPolicies, tr("Policies"), "", false)
-		navItem(navTasks, iconTasks, tr("Tasks & Logs"), taskBadge, true)
-		navItem(navRepo, iconRepo, tr("Repository"), "", false)
+		navItem(navBackups, iconBackups, locales.NavBackups(), srcBadge, false)
+		navItem(navSnapshots, iconSnapshots, locales.NavSnapshots(), "", false)
+		navItem(navSearch, iconSearch, locales.NavSearch(), "", false)
+		navItem(navDiff, iconDiff, locales.NavSnapshotDiff(), "", false)
+		navItem(navPolicies, iconPolicies, locales.NavPolicies(), "", false)
+		navItem(navTasks, iconTasks, locales.NavTasksLogs(), taskBadge, true)
+		navItem(navRepo, iconRepo, locales.NavRepository(), "", false)
 
 		// 4. Flexible Spacer + Bottom Divider + Bottom-Pinned Settings (identical in both states)
 		ui.Spacer(c)
 		ui.Box(c).Height(1).Margin(2, 4).Background(p.borderSoft).Shrink(0)
-		navItem(navSettings, iconSettings, tr("Settings"), "", false)
+		navItem(navSettings, iconSettings, locales.NavSettings(), "", false)
 	})
 }
 
@@ -1668,9 +1680,9 @@ func (a *App) renderTopToolbar(c *ui.Context, prof config.RepoProfile, st kopia.
 	if bar.Right > 0 {
 		rightPad = bar.Right + 10
 	}
-	toggleTip := tr("Collapse Sidebar")
+	toggleTip := locales.CollapseSidebar()
 	if a.settings.SidebarCollapsed {
-		toggleTip = tr("Expand Sidebar")
+		toggleTip = locales.ExpandSidebar()
 	}
 
 	ui.Row(c).
@@ -1682,7 +1694,7 @@ func (a *App) renderTopToolbar(c *ui.Context, prof config.RepoProfile, st kopia.
 		Background(p.canvas).
 		DragWindow().
 		Children(func() {
-			if ui.Button(c, "").Label(tr("Toggle Sidebar")).Tooltip(toggleTip + modShortcutHint("B")).Padding(5, 7).Children(func() {
+			if ui.Button(c, "").Label(locales.ToggleSidebar()).Tooltip(toggleTip + modShortcutHint("B")).Padding(5, 7).Children(func() {
 				ui.Icon(c, iconSidebar).FontSize(15)
 			}).Clicked() {
 				a.toggleSidebarCollapsed()
@@ -1698,11 +1710,11 @@ func (a *App) renderTopToolbar(c *ui.Context, prof config.RepoProfile, st kopia.
 			}
 
 			if st.Starting {
-				statusPill(c, tr("Starting…"), c.Theme().Warning, p.warningSoft)
+				statusPill(c, locales.Starting(), c.Theme().Warning, p.warningSoft)
 			} else if st.Connected() {
-				statusPill(c, tr("Connected"), c.Theme().Success, p.successSoft)
+				statusPill(c, locales.Connected(), c.Theme().Success, p.successSoft)
 			} else if a.manager != nil {
-				statusPill(c, tr("Disconnected"), p.muted, p.subtleBg)
+				statusPill(c, locales.Disconnected(), p.muted, p.subtleBg)
 			}
 
 			ui.Spacer(c)
@@ -1712,12 +1724,12 @@ func (a *App) renderTopToolbar(c *ui.Context, prof config.RepoProfile, st kopia.
 				statusPill(c, spinStatus, c.Theme().Accent, p.accentSoft)
 			}
 
-			refreshTip := tr("Refresh") + modShortcutHint("R")
+			refreshTip := locales.Refresh() + modShortcutHint("R")
 			if spinning && spinStatus != "" {
 				refreshTip = spinStatus + modShortcutHint("R")
 			}
 			refreshBtn := ui.Button(c.Key("toolbar-refresh-btn"), "").
-				Label(tr("Refresh")).
+				Label(locales.Refresh()).
 				Tooltip(refreshTip).
 				Padding(5, 7)
 			refreshBtn.Children(func() {
@@ -1768,21 +1780,21 @@ func (a *App) renderRouteBody(c *ui.Context, prof config.RepoProfile, st kopia.R
 func (a *App) currentSectionTitle() string {
 	switch a.activeNav {
 	case navBackups:
-		return tr("Backups")
+		return locales.NavBackups()
 	case navSnapshots:
-		return tr("Snapshots")
+		return locales.NavSnapshots()
 	case navSearch:
-		return tr("Search")
+		return locales.NavSearch()
 	case navDiff:
-		return tr("Snapshot Diff")
+		return locales.NavSnapshotDiff()
 	case navPolicies:
-		return tr("Policies")
+		return locales.NavPolicies()
 	case navTasks:
-		return tr("Tasks & Logs")
+		return locales.NavTasksLogs()
 	case navRepo:
-		return tr("Repository")
+		return locales.NavRepository()
 	case navSettings:
-		return tr("Settings")
+		return locales.NavSettings()
 	default:
 		return "Mygopia"
 	}

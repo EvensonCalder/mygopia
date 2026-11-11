@@ -42,10 +42,11 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Run go vet & mygo vet
+      - name: Run go vet, mygo vet & i18n check
         run: |
           go vet ./...
           go tool mygo vet
+          go tool mygo i18n check
 
       - name: Run unit & headless UI tests with race detector
         run: go test -race -v ./...

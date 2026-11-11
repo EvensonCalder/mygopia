@@ -11,6 +11,7 @@ import (
 
 	"mygopia/internal/config"
 	"mygopia/internal/kopia"
+	"mygopia/locales"
 )
 
 func (a *App) renderBackupsView(c *ui.Context, prof config.RepoProfile, st kopia.RepoSnapshotState) {
@@ -18,8 +19,8 @@ func (a *App) renderBackupsView(c *ui.Context, prof config.RepoProfile, st kopia
 	sources := st.SourceList()
 	idxStats, hasIdx := a.indexer.Stats(prof.ID)
 
-	ui.Scroll(c.Key("backups-scroll")).Fill().Padding(20).Children(func() {
-		ui.Column(c).Gap(18).Children(func() {
+	ui.Scroll(c.Key("backups-scroll")).Fill().Padding(16, 20).Children(func() {
+		ui.Column(c).Gap(14).Children(func() {
 			// Summary metrics strip
 			ui.Row(c).Wrap().Gap(12).Children(func() {
 				storageTitle := "—"
@@ -30,48 +31,48 @@ func (a *App) renderBackupsView(c *ui.Context, prof config.RepoProfile, st kopia
 						storageSub = formatBytes(st.ContentStats.PackedBytes)
 					}
 				}
-				metricCard(c, tr("Storage"), storageTitle, shortenMiddle(storageSub, 30))
+				metricCard(c, locales.Storage(), storageTitle, shortenMiddle(storageSub, 30))
 
 				srcSub := ""
 				if st.Sources != nil && st.Sources.LocalHost != "" {
 					srcSub = st.Sources.LocalUsername + "@" + st.Sources.LocalHost
 				}
-				metricCard(c, tr("Active Sources"), intToStr(len(sources)), srcSub)
+				metricCard(c, locales.ActiveSources(), intToStr(len(sources)), srcSub)
 
-				idxVal := tr("Not indexed yet")
+				idxVal := locales.NotIndexedYet()
 				idxSub := ""
 				if idxStats.Indexing {
-					idxVal = tr("Indexing…")
+					idxVal = locales.Indexing()
 				} else if hasIdx {
 					if idxStats.SnapshotCount == 1 {
-						idxVal = tr("1 snapshot")
+						idxVal = locales.N1Snapshot()
 					} else {
-						idxVal = trf("%d snapshots", idxStats.SnapshotCount)
+						idxVal = locales.SnapshotCount(idxStats.SnapshotCount)
 					}
-					idxSub = trf("%d files · %d deleted", idxStats.FileCount, idxStats.DeletedCount)
+					idxSub = locales.IndexFilesDeletedSummary(idxStats.FileCount, idxStats.DeletedCount)
 				}
-				metricCard(c, tr("Search Index"), idxVal, idxSub)
+				metricCard(c, locales.SearchIndex(), idxVal, idxSub)
 
 				activeTasks := st.ActiveTaskCount()
-				taskSub := tr("All tasks idle")
+				taskSub := locales.AllTasksIdle()
 				if activeTasks > 0 {
-					taskSub = trf("%d active", activeTasks)
+					taskSub = locales.ActiveTasksCount(activeTasks)
 				}
-				metricCard(c, tr("Running Tasks"), intToStr(activeTasks), taskSub)
+				metricCard(c, locales.RunningTasks(), intToStr(activeTasks), taskSub)
 			})
 
 			// Action bar above Sources
 			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-				ui.Text(c, tr("Backups")).FontSize(14).FontWeight(600)
+				ui.Text(c, locales.NavBackups()).FontSize(14).FontWeight(600)
 				ui.Spacer(c)
 				if len(sources) > 0 {
-					ui.Button(c, tr("Backup All")).OnClick(func() {
+					ui.Button(c, locales.BackupAll()).OnClick(func() {
 						a.triggerSnapshotAction(nil)
 					})
 				}
 				ui.PrimaryButton(c, "").Gap(6).Children(func() {
 					ui.Icon(c, iconPlus).FontSize(13.5)
-					ui.Text(c, tr("Add Folder")).SingleLine()
+					ui.Text(c, locales.AddFolder()).SingleLine()
 				}).OnClick(func() {
 					a.newSourcePath = ""
 					a.newSourceSnapNow = true
@@ -84,9 +85,9 @@ func (a *App) renderBackupsView(c *ui.Context, prof config.RepoProfile, st kopia
 					emptyState(
 						c,
 						iconFolder,
-						tr("No backup sources yet"),
-						tr("Add a local folder to start encrypted, deduplicated backups."),
-						tr("Add Folder"),
+						locales.NoBackupSourcesYet(),
+						locales.AddALocalFolderToStartEncrypted(),
+						locales.AddFolder(),
 						func() {
 							a.newSourcePath = ""
 							a.newSourceSnapNow = true
@@ -98,114 +99,122 @@ func (a *App) renderBackupsView(c *ui.Context, prof config.RepoProfile, st kopia
 			}
 
 			// Source cards
-			ui.Column(c).Gap(10).Children(func() {
+			ui.Column(c).Gap(8).Children(func() {
 				for _, item := range sources {
 					src := item
 					srcKey := src.Source.String()
-					card(c.Key("src-"+srcKey), func() {
-						ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
-							ui.Icon(c, iconFolder).FontSize(17).TextColor(p.accent)
-							ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-								ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-									ui.Text(c, src.Source.Path).FontSize(13.5).FontWeight(600).SingleLine()
-									a.renderSourceStatusBadge(c, src.Status)
+					ui.Column(c.Key("src-" + srcKey)).
+						Padding(11, 14).
+						Gap(6).
+						Radius(8).
+						Background(p.cardBg).
+						Border(1, p.border).
+						Children(func() {
+							ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
+								ui.Icon(c, iconFolder).FontSize(16.5).TextColor(p.accent)
+								ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
+									ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+										ui.Text(c, src.Source.Path).FontSize(13.5).FontWeight(600).SingleLine()
+										a.renderSourceStatusBadge(c, src.Status)
+									})
+									hostLine := src.Source.UserName + "@" + src.Source.Host
+									ui.Text(c, hostLine).FontSize(11.5).TextColor(p.muted).SingleLine()
 								})
-								hostLine := src.Source.UserName + "@" + src.Source.Host
-								ui.Text(c, hostLine).FontSize(11.5).TextColor(p.muted).SingleLine()
-							})
 
-							// Quick ergonomic actions
-							ui.Row(c).Gap(6).Shrink(0).Children(func() {
-								isRunning := src.Status == "UPLOADING" || src.Status == "PENDING"
-								if isRunning {
-									ui.Button(c, tr("Cancel Backup")).OnClick(func() {
-										sCopy := src.Source
-										a.cancelSnapshotAction(&sCopy)
-									})
-								} else {
-									ui.PrimaryButton(c, tr("Backup Now")).OnClick(func() {
-										sCopy := src.Source
-										a.triggerSnapshotAction(&sCopy)
-									})
-								}
-
-								if src.Status == "PAUSED" {
-									ui.Button(c, tr("Resume")).OnClick(func() {
-										sCopy := src.Source
-										a.pauseResumeSourceAction(sCopy, false)
-									})
-								} else {
-									ui.Button(c, tr("Pause")).OnClick(func() {
-										sCopy := src.Source
-										a.pauseResumeSourceAction(sCopy, true)
-									})
-								}
-
-								ui.Button(c, tr("Browse")).OnClick(func() {
-									a.openSnapshotsForSource(src.Source)
-								})
-								ui.Button(c, tr("Policy")).OnClick(func() {
-									a.openPolicyForTarget(src.Source)
-								})
-							})
-						})
-
-						// Live Upload Progress Bar when UPLOADING
-						if src.Upload != nil && (src.Status == "UPLOADING" || src.Status == "PENDING") {
-							done := src.Upload.CachedBytes + src.Upload.HashedBytes
-							var frac float64 = -1
-							if src.Upload.EstimatedBytes > 0 {
-								frac = min(1.0, float64(done)/float64(src.Upload.EstimatedBytes))
-							}
-							ui.Column(c).Gap(4).Padding(6, 0, 0, 0).Children(func() {
-								ui.Progress(c, frac).Label(tr("Uploading…"))
-								ui.Row(c).Gap(12).Children(func() {
-									ui.Textf(c, "%s / %s", formatBytes(done), formatBytes(src.Upload.EstimatedBytes)).
-										FontSize(11.5).FontFeatures("tnum").TextColor(p.muted)
-									if src.Upload.CurrentDirectory != "" {
-										ui.Text(c, shortenMiddle(src.Upload.CurrentDirectory, 55)).
-											FontSize(11.5).TextColor(p.muted).SingleLine()
+								// Quick ergonomic actions
+								ui.Row(c).Gap(6).Shrink(0).Children(func() {
+									isRunning := src.Status == "UPLOADING" || src.Status == "PENDING"
+									if isRunning {
+										ui.Button(c, locales.CancelBackup()).OnClick(func() {
+											sCopy := src.Source
+											a.cancelSnapshotAction(&sCopy)
+										})
+									} else {
+										ui.PrimaryButton(c, locales.BackupNow()).OnClick(func() {
+											sCopy := src.Source
+											a.triggerSnapshotAction(&sCopy)
+										})
 									}
+
+									if src.Status == "PAUSED" {
+										ui.Button(c, locales.Resume()).OnClick(func() {
+											sCopy := src.Source
+											a.pauseResumeSourceAction(sCopy, false)
+										})
+									} else {
+										ui.Button(c, locales.Pause()).OnClick(func() {
+											sCopy := src.Source
+											a.pauseResumeSourceAction(sCopy, true)
+										})
+									}
+
+									ui.Button(c, locales.Browse()).OnClick(func() {
+										a.openSnapshotsForSource(src.Source)
+									})
+									ui.Button(c, locales.Policy()).OnClick(func() {
+										a.openPolicyForTarget(src.Source)
+									})
 								})
 							})
-						}
 
-						// Metadata footer row
-						ui.Row(c).AlignItems(ui.Center).Gap(16).Padding(4, 0, 0, 0).Children(func() {
-							if src.LastSnapshot != nil && !src.LastSnapshot.StartTime.IsZero() {
-								lastStr := formatShortTime(src.LastSnapshot.StartTime.Time)
-								if src.LastSnapshot.RootEntry != nil && src.LastSnapshot.RootEntry.DirSummary != nil {
-									lastStr += " · " + formatBytes(src.LastSnapshot.RootEntry.DirSummary.TotalFileSize)
+							// Live Upload Progress Bar when UPLOADING
+							if src.Upload != nil && (src.Status == "UPLOADING" || src.Status == "PENDING") {
+								done := src.Upload.CachedBytes + src.Upload.HashedBytes
+								var frac float64 = -1
+								if src.Upload.EstimatedBytes > 0 {
+									frac = min(1.0, float64(done)/float64(src.Upload.EstimatedBytes))
 								}
-								ui.Text(c, trf("Last backup: %s", lastStr)).FontSize(11.5).FontFeatures("tnum").TextColor(p.muted)
-							} else {
-								ui.Text(c, tr("Never backed up")).FontSize(11.5).TextColor(p.muted)
-							}
-
-							if src.NextSnapshotTime != nil && !src.NextSnapshotTime.IsZero() {
-								ui.Text(c, trf("Next run: %s", formatShortTime(src.NextSnapshotTime.Time))).
-									FontSize(11.5).FontFeatures("tnum").TextColor(p.muted)
-							} else if src.Schedule.Manual {
-								ui.Text(c, tr("Manual schedule")).FontSize(11.5).TextColor(p.muted)
-							}
-
-							ui.Spacer(c)
-							localDir, hasLocal := a.resolveLocalDiffDir(src.Source, st)
-							if src.LastSnapshot != nil && hasLocal {
-								compactButton(c, tr("Diff Local")).OnClick(func() {
-									a.openDiffForSource(src.Source, "", diffTargetLocalDir)
+								ui.Column(c).Gap(4).Padding(2, 0, 0, 0).Children(func() {
+									ui.Progress(c, frac).Label(locales.Uploading())
+									ui.Row(c).Gap(12).Children(func() {
+										ui.Textf(c, "%s / %s", formatBytes(done), formatBytes(src.Upload.EstimatedBytes)).
+											FontSize(11.5).FontFeatures("tnum").TextColor(p.muted)
+										if src.Upload.CurrentDirectory != "" {
+											ui.Text(c, shortenMiddle(src.Upload.CurrentDirectory, 55)).
+												FontSize(11.5).TextColor(p.muted).SingleLine()
+										}
+									})
 								})
 							}
-							if a.desktopRunning && hasLocal {
-								compactButton(c, tr("Reveal in File Manager")).OnClick(func() {
-									_ = mygo.Shell.OpenPath(localDir)
+
+							// Metadata footer row
+							ui.Row(c).AlignItems(ui.Center).Gap(12).Children(func() {
+								if src.LastSnapshot != nil && !src.LastSnapshot.StartTime.IsZero() {
+									lastStr := formatShortTime(src.LastSnapshot.StartTime.Time)
+									if src.LastSnapshot.RootEntry != nil && src.LastSnapshot.RootEntry.DirSummary != nil {
+										lastStr += " · " + formatBytes(src.LastSnapshot.RootEntry.DirSummary.TotalFileSize)
+									}
+									ui.Text(c, locales.LastBackupTime(lastStr)).FontSize(11.5).FontFeatures("tnum").TextColor(p.muted)
+								} else {
+									ui.Text(c, locales.NeverBackedUp()).FontSize(11.5).TextColor(p.muted)
+								}
+
+								if src.NextSnapshotTime != nil && !src.NextSnapshotTime.IsZero() {
+									ui.Text(c, locales.NextRunTime(formatShortTime(src.NextSnapshotTime.Time))).
+										FontSize(11.5).FontFeatures("tnum").TextColor(p.muted)
+								} else if src.Schedule.Manual {
+									ui.Text(c, locales.ManualSchedule()).FontSize(11.5).TextColor(p.muted)
+								}
+
+								ui.Spacer(c)
+								ui.Row(c).AlignItems(ui.Center).Gap(6).Shrink(0).Children(func() {
+									localDir, hasLocal := a.resolveLocalDiffDir(src.Source, st)
+									if src.LastSnapshot != nil && hasLocal {
+										compactButton(c, locales.DiffLocal()).OnClick(func() {
+											a.openDiffForSource(src.Source, "", diffTargetLocalDir)
+										})
+									}
+									if a.desktopRunning && hasLocal {
+										compactButton(c, locales.RevealInFileManager()).OnClick(func() {
+											_ = mygo.Shell.OpenPath(localDir)
+										})
+									}
+									compactButton(c, locales.RemoveSource()).TextColor(c.Theme().Danger).OnClick(func() {
+										a.removeSourceAction(src.Source)
+									})
 								})
-							}
-							compactButton(c, tr("Remove Source")).TextColor(c.Theme().Danger).OnClick(func() {
-								a.removeSourceAction(src.Source)
 							})
 						})
-					})
 				}
 			})
 		})
@@ -217,15 +226,15 @@ func (a *App) renderSourceStatusBadge(c *ui.Context, status string) {
 	t := c.Theme()
 	switch status {
 	case "UPLOADING":
-		statusPill(c, tr("Uploading…"), t.Accent, p.accentSoft)
+		statusPill(c, locales.Uploading(), t.Accent, p.accentSoft)
 	case "PENDING":
-		statusPill(c, tr("Pending"), t.Warning, p.warningSoft)
+		statusPill(c, locales.Pending(), t.Warning, p.warningSoft)
 	case "PAUSED":
-		statusPill(c, tr("Paused"), t.Warning, p.warningSoft)
+		statusPill(c, locales.Paused(), t.Warning, p.warningSoft)
 	case "FAILED":
-		statusPill(c, tr("Failed"), t.Danger, p.dangerSoft)
+		statusPill(c, locales.Failed(), t.Danger, p.dangerSoft)
 	default:
-		statusPill(c, tr("Idle"), t.Success, p.successSoft)
+		statusPill(c, locales.Idle(), t.Success, p.successSoft)
 	}
 }
 
@@ -235,30 +244,30 @@ func (a *App) renderAddSourceModal(c *ui.Context) {
 	}
 	ui.Modal(c, &a.addSourceModalOpen, func() {
 		ui.Column(c).Width(460).Gap(16).Children(func() {
-			ui.Text(c, tr("Add Backup Source")).FontSize(15.5).FontWeight(600)
+			ui.Text(c, locales.AddBackupSource()).FontSize(15.5).FontWeight(600)
 			ui.Form(c, func() {
-				ui.Field(c, tr("Folder Path"), func() {
+				ui.Field(c, locales.FolderPath(), func() {
 					ui.Row(c).Gap(8).Children(func() {
 						ui.TextInput(c.Key("new-src-path"), &a.newSourcePath).
 							Placeholder("/Users/you/Documents").
 							AutoFocus().
 							Grow(1)
 						if a.desktopRunning {
-							if ui.Button(c, tr("Browse…")).Clicked() {
+							if ui.Button(c, locales.BrowsePicker()).Clicked() {
 								go a.pickDirectoryInto(&a.newSourcePath)
 							}
 						}
 					})
 				})
 				ui.Field(c, "", func() {
-					ui.Checkbox(c, &a.newSourceSnapNow, tr("Start first backup immediately"))
+					ui.Checkbox(c, &a.newSourceSnapNow, locales.StartFirstBackupImmediately())
 				})
 			})
 			ui.Row(c).Gap(8).Justify(ui.End).Padding(4, 0, 0, 0).Children(func() {
-				if ui.Button(c, tr("Cancel")).Clicked() {
+				if ui.Button(c, locales.Cancel()).Clicked() {
 					a.addSourceModalOpen = false
 				}
-				ui.PrimaryButton(c, tr("Add & Backup")).Disabled(strings.TrimSpace(a.newSourcePath) == "").OnClick(func() {
+				ui.PrimaryButton(c, locales.AddBackup()).Disabled(strings.TrimSpace(a.newSourcePath) == "").OnClick(func() {
 					folder := filepath.Clean(config.ExpandPath(a.newSourcePath))
 					snapNow := a.newSourceSnapNow
 					a.addSourceModalOpen = false
@@ -287,7 +296,7 @@ func (a *App) createSourceAction(folder string, snapNow bool) {
 			return
 		}
 		a.manager.RefreshRepo(ctx, repoID, false)
-		a.toast(tr("Source added"), false)
+		a.toast(locales.SourceAdded(), false)
 	}()
 }
 
@@ -310,7 +319,7 @@ func (a *App) triggerSnapshotAction(src *kopia.SourceInfo) {
 			return
 		}
 		a.manager.RefreshRepo(ctx, repoID, false)
-		a.toast(tr("Backup triggered"), false)
+		a.toast(locales.BackupTriggered(), false)
 
 		if autoIndex {
 			go func() {
@@ -382,7 +391,7 @@ func (a *App) removeSourceAction(src kopia.SourceInfo) {
 		return
 	}
 	go func() {
-		if !a.confirmDestructive(tr("Remove Source")+": "+src.Path+"?", tr("Remove")) {
+		if !a.confirmDestructive(locales.RemoveSource()+": "+src.Path+"?", locales.Remove()) {
 			return
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -411,6 +420,6 @@ func (a *App) removeSourceAction(src kopia.SourceInfo) {
 			return
 		}
 		a.manager.RefreshRepo(ctx, repoID, false)
-		a.toast(tr("Source removed"), false)
+		a.toast(locales.SourceRemoved(), false)
 	}()
 }

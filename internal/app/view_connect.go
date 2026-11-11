@@ -15,6 +15,7 @@ import (
 
 	"mygopia/internal/config"
 	"mygopia/internal/kopia"
+	"mygopia/locales"
 )
 
 type connectFormState struct {
@@ -114,25 +115,25 @@ var providerKeys = []string{
 func providerLabel(key string) string {
 	switch key {
 	case "filesystem":
-		return tr("Local Folder / NAS")
+		return locales.LocalFolderNAS()
 	case "s3":
-		return tr("S3 / S3-Compatible")
+		return locales.S3S3Compatible()
 	case "b2":
-		return tr("Backblaze B2")
+		return locales.BackblazeB2()
 	case "sftp":
-		return tr("SFTP / SSH")
+		return locales.SftpSSH()
 	case "webdav":
-		return tr("WebDAV")
+		return locales.Webdav()
 	case "rclone":
-		return tr("Rclone Remote")
+		return locales.RcloneRemote()
 	case "gcs":
-		return tr("Google Cloud Storage")
+		return locales.GoogleCloudStorage()
 	case "azureBlob":
-		return tr("Azure Blob Storage")
+		return locales.AzureBlobStorage()
 	case "kopia-server":
-		return tr("Kopia Server")
+		return locales.KopiaServer()
 	case "token":
-		return tr("Repository Token")
+		return locales.RepositoryToken()
 	default:
 		return key
 	}
@@ -180,7 +181,7 @@ func (a *App) renderRepoOnboarding(c *ui.Context, prof config.RepoProfile, st ko
 				ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
 					ui.Icon(c, iconRepo).FontSize(20).TextColor(p.accent)
 					ui.Column(c).Grow(1).Gap(2).Children(func() {
-						ui.Text(c, tr("Connect or Create")).FontSize(16).FontWeight(600)
+						ui.Text(c, locales.ConnectOrCreate()).FontSize(16).FontWeight(600)
 						ui.Text(c, prof.ConfigFile).FontSize(11.5).TextColor(p.muted).SingleLine()
 					})
 				})
@@ -206,7 +207,7 @@ func (a *App) renderConnectModal(c *ui.Context) {
 	_, st := a.activeRepoState()
 	ui.Modal(c, &a.connectModalOpen, func() {
 		ui.Column(c).Width(560).MaxHeight(640).Gap(14).Children(func() {
-			ui.Text(c, tr("Connect or Create")).FontSize(16).FontWeight(600)
+			ui.Text(c, locales.ConnectOrCreate()).FontSize(16).FontWeight(600)
 			ui.Scroll(c.Key("connect-modal-scroll")).Grow(1).Padding(2, 6, 4, 2).Children(func() {
 				a.renderConnectFormFields(c, st.Algorithms)
 			})
@@ -222,7 +223,7 @@ func (a *App) renderConnectFormFields(c *ui.Context, algos *kopia.SupportedAlgor
 
 	ui.Column(c).Gap(16).Children(func() {
 		ui.Row(c).Children(func() {
-			ui.Segmented(c, &f.modeSeg, tr("Connect Existing"), tr("Create New")).Label(tr("Connect or Create"))
+			ui.Segmented(c, &f.modeSeg, locales.ConnectExisting(), locales.CreateNew()).Label(locales.ConnectOrCreate())
 		})
 
 		// Provider selection mapped through translated labels
@@ -250,12 +251,12 @@ func (a *App) renderConnectFormFields(c *ui.Context, algos *kopia.SupportedAlgor
 
 		ui.Form(c, func() {
 			if a.connectAsNewRepo {
-				ui.Field(c, tr("Repository Name"), func() {
+				ui.Field(c, locales.RepositoryName(), func() {
 					ui.TextInput(c.Key("conn-reponame"), &f.repoName).Placeholder("Work Backups")
 				})
 			}
 
-			ui.Field(c, tr("Storage Provider"), func() {
+			ui.Field(c, locales.StorageProvider(), func() {
 				if ui.Select(c.Key("conn-provider"), &curLabel, labels).Changed() {
 					for i, lb := range labels {
 						if lb == curLabel && i < len(availKeys) {
@@ -268,11 +269,11 @@ func (a *App) renderConnectFormFields(c *ui.Context, algos *kopia.SupportedAlgor
 
 			switch f.provider {
 			case "filesystem":
-				ui.Field(c, tr("Repository Directory"), func() {
+				ui.Field(c, locales.RepositoryDirectory(), func() {
 					ui.Row(c).Gap(8).Children(func() {
 						ui.TextInput(c.Key("fs-path"), &f.fsPath).Placeholder("/Volumes/BackupDrive/kopia-repo").Grow(1)
 						if a.desktopRunning {
-							if ui.Button(c, tr("Browse…")).Clicked() {
+							if ui.Button(c, locales.BrowsePicker()).Clicked() {
 								go a.pickDirectoryInto(&f.fsPath)
 							}
 						}
@@ -280,90 +281,90 @@ func (a *App) renderConnectFormFields(c *ui.Context, algos *kopia.SupportedAlgor
 				})
 
 			case "s3":
-				ui.Field(c, tr("Bucket Name"), func() {
+				ui.Field(c, locales.BucketName(), func() {
 					ui.TextInput(c.Key("s3-bucket"), &f.s3Bucket).Placeholder("my-kopia-backups")
 				})
-				ui.Field(c, tr("Endpoint"), func() {
+				ui.Field(c, locales.Endpoint(), func() {
 					ui.TextInput(c.Key("s3-endpoint"), &f.s3Endpoint).Placeholder("s3.amazonaws.com / <account>.r2.cloudflarestorage.com")
 				})
-				ui.Field(c, tr("Region"), func() {
+				ui.Field(c, locales.Region(), func() {
 					ui.TextInput(c.Key("s3-region"), &f.s3Region).Placeholder("us-east-1 / auto")
 				})
-				ui.Field(c, tr("Access Key ID"), func() {
+				ui.Field(c, locales.AccessKeyID(), func() {
 					ui.TextInput(c.Key("s3-ak"), &f.s3AccessKey)
 				})
-				ui.Field(c, tr("Secret Access Key"), func() {
+				ui.Field(c, locales.SecretAccessKey(), func() {
 					ui.TextInput(c.Key("s3-sk"), &f.s3SecretKey).Password()
 				})
-				ui.Field(c, tr("Session Token"), func() {
-					ui.TextInput(c.Key("s3-stok"), &f.s3SessionToken).Password().Placeholder(tr("Optional"))
+				ui.Field(c, locales.SessionToken(), func() {
+					ui.TextInput(c.Key("s3-stok"), &f.s3SessionToken).Password().Placeholder(locales.Optional())
 				})
-				ui.Field(c, tr("Object Prefix"), func() {
-					ui.TextInput(c.Key("s3-prefix"), &f.s3Prefix).Placeholder(tr("Optional"))
+				ui.Field(c, locales.ObjectPrefix(), func() {
+					ui.TextInput(c.Key("s3-prefix"), &f.s3Prefix).Placeholder(locales.Optional())
 				})
 				ui.Field(c, "", func() {
 					ui.Column(c).Gap(6).Children(func() {
-						ui.Checkbox(c, &f.s3DoNotUseTLS, tr("Use HTTP (Disable TLS)"))
-						ui.Checkbox(c, &f.s3DoNotVerifyTLS, tr("Skip TLS Certificate Verification"))
+						ui.Checkbox(c, &f.s3DoNotUseTLS, locales.UseHTTPDisableTLS())
+						ui.Checkbox(c, &f.s3DoNotVerifyTLS, locales.SkipTLSCertificateVerification())
 					})
 				})
 
 			case "b2":
-				ui.Field(c, tr("Bucket Name"), func() {
+				ui.Field(c, locales.BucketName(), func() {
 					ui.TextInput(c.Key("b2-bucket"), &f.b2Bucket)
 				})
-				ui.Field(c, tr("Key ID"), func() {
+				ui.Field(c, locales.KeyID(), func() {
 					ui.TextInput(c.Key("b2-keyid"), &f.b2KeyID)
 				})
-				ui.Field(c, tr("Application Key"), func() {
+				ui.Field(c, locales.ApplicationKey(), func() {
 					ui.TextInput(c.Key("b2-key"), &f.b2Key).Password()
 				})
-				ui.Field(c, tr("Object Prefix"), func() {
-					ui.TextInput(c.Key("b2-prefix"), &f.b2Prefix).Placeholder(tr("Optional"))
+				ui.Field(c, locales.ObjectPrefix(), func() {
+					ui.TextInput(c.Key("b2-prefix"), &f.b2Prefix).Placeholder(locales.Optional())
 				})
 
 			case "sftp":
-				ui.Field(c, tr("Host"), func() {
+				ui.Field(c, locales.Host(), func() {
 					ui.Row(c).Gap(8).Children(func() {
 						ui.TextInput(c.Key("sftp-host"), &f.sftpHost).Placeholder("nas.local").Grow(1)
 						ui.TextInput(c.Key("sftp-port"), &f.sftpPort).Placeholder("22").Width(80)
 					})
 				})
-				ui.Field(c, tr("Username"), func() {
+				ui.Field(c, locales.Username(), func() {
 					ui.TextInput(c.Key("sftp-user"), &f.sftpUsername)
 				})
-				ui.Field(c, tr("Remote Path"), func() {
+				ui.Field(c, locales.RemotePath(), func() {
 					ui.TextInput(c.Key("sftp-path"), &f.sftpPath).Placeholder("/mnt/backups/kopia")
 				})
 				ui.Field(c, "", func() {
-					ui.Checkbox(c, &f.sftpExternalSSH, tr("Use External SSH Command (Agent / ~/.ssh/config)"))
+					ui.Checkbox(c, &f.sftpExternalSSH, locales.UseExternalSSHCommandAgentSSHConfig())
 				})
 				if f.sftpExternalSSH {
-					ui.Field(c, tr("SSH Command"), func() {
+					ui.Field(c, locales.SshCommand(), func() {
 						ui.TextInput(c.Key("sftp-ext-cmd"), &f.sftpSSHCommand).Placeholder("ssh")
 					})
-					ui.Field(c, tr("SSH Arguments"), func() {
-						ui.TextInput(c.Key("sftp-ext-args"), &f.sftpSSHArgs).Placeholder(tr("Optional"))
+					ui.Field(c, locales.SshArguments(), func() {
+						ui.TextInput(c.Key("sftp-ext-args"), &f.sftpSSHArgs).Placeholder(locales.Optional())
 					})
 				} else {
-					ui.Field(c, tr("Password"), func() {
-						ui.TextInput(c.Key("sftp-pass"), &f.sftpPassword).Password().Placeholder(tr("Optional"))
+					ui.Field(c, locales.Password(), func() {
+						ui.TextInput(c.Key("sftp-pass"), &f.sftpPassword).Password().Placeholder(locales.Optional())
 					})
-					ui.Field(c, tr("SSH Key File"), func() {
+					ui.Field(c, locales.SshKeyFile(), func() {
 						ui.Row(c).Gap(8).Children(func() {
 							ui.TextInput(c.Key("sftp-key"), &f.sftpKeyfile).Placeholder("~/.ssh/id_ed25519").Grow(1)
 							if a.desktopRunning {
-								if ui.Button(c, tr("Browse…")).Clicked() {
+								if ui.Button(c, locales.BrowsePicker()).Clicked() {
 									go a.pickFileInto(&f.sftpKeyfile)
 								}
 							}
 						})
 					})
-					ui.Field(c, tr("Known Hosts File"), func() {
+					ui.Field(c, locales.KnownHostsFile(), func() {
 						ui.Row(c).Gap(8).Children(func() {
 							ui.TextInput(c.Key("sftp-kh"), &f.sftpKnownHosts).Placeholder("~/.ssh/known_hosts").Grow(1)
 							if a.desktopRunning {
-								if ui.Button(c, tr("Browse…")).Clicked() {
+								if ui.Button(c, locales.BrowsePicker()).Clicked() {
 									go a.pickFileInto(&f.sftpKnownHosts)
 								}
 							}
@@ -372,54 +373,54 @@ func (a *App) renderConnectFormFields(c *ui.Context, algos *kopia.SupportedAlgor
 				}
 
 			case "webdav":
-				ui.Field(c, tr("Server URL"), func() {
+				ui.Field(c, locales.ServerURL(), func() {
 					ui.TextInput(c.Key("dav-url"), &f.webdavURL).Placeholder("https://dav.example.com/kopia")
 				})
-				ui.Field(c, tr("Username"), func() {
+				ui.Field(c, locales.Username(), func() {
 					ui.TextInput(c.Key("dav-user"), &f.webdavUser)
 				})
-				ui.Field(c, tr("Password"), func() {
+				ui.Field(c, locales.Password(), func() {
 					ui.TextInput(c.Key("dav-pass"), &f.webdavPass).Password()
 				})
 
 			case "rclone":
-				ui.Field(c, tr("Rclone Remote Path (remote:path)"), func() {
+				ui.Field(c, locales.RcloneRemotePathRemotePath(), func() {
 					ui.TextInput(c.Key("rclone-path"), &f.rcloneRemotePath).Placeholder("gdrive:kopia-backup")
 				})
 				detRclone := a.detectedRclone
 				if detRclone == "" {
-					detRclone = tr("Not detected")
+					detRclone = locales.NotDetected()
 				}
 				rclonePlaceholder := config.ExampleRcloneBinaryPath()
 				if a.detectedRclone != "" {
 					rclonePlaceholder = a.detectedRclone
 				}
-				ui.Field(c, tr("Rclone Binary Path"), func() {
+				ui.Field(c, locales.RcloneBinaryPath(), func() {
 					ui.Row(c).Gap(8).Children(func() {
 						ui.TextInput(c.Key("rclone-exe"), &f.rcloneExe).Placeholder(rclonePlaceholder).Grow(1)
 						if a.desktopRunning {
-							if ui.Button(c, tr("Browse…")).Clicked() {
+							if ui.Button(c, locales.BrowsePicker()).Clicked() {
 								go a.pickFileInto(&f.rcloneExe)
 							}
 						}
 					})
-				}).Description(trf("Leave blank to auto-detect (currently: %s)", detRclone))
-				ui.Field(c, tr("Rclone Arguments"), func() {
+				}).Description(locales.AutoDetectBinaryHint(detRclone))
+				ui.Field(c, locales.RcloneArguments(), func() {
 					ui.TextInput(c.Key("rclone-args"), &f.rcloneArgs).Placeholder("--config ~/.config/rclone/rclone.conf")
 				})
 
 			case "gcs":
-				ui.Field(c, tr("Bucket Name"), func() {
+				ui.Field(c, locales.BucketName(), func() {
 					ui.TextInput(c.Key("gcs-bucket"), &f.gcsBucket)
 				})
-				ui.Field(c, tr("Object Prefix"), func() {
-					ui.TextInput(c.Key("gcs-prefix"), &f.gcsPrefix).Placeholder(tr("Optional"))
+				ui.Field(c, locales.ObjectPrefix(), func() {
+					ui.TextInput(c.Key("gcs-prefix"), &f.gcsPrefix).Placeholder(locales.Optional())
 				})
-				ui.Field(c, tr("Service Account JSON File"), func() {
+				ui.Field(c, locales.ServiceAccountJSONFile(), func() {
 					ui.Row(c).Gap(8).Children(func() {
-						ui.TextInput(c.Key("gcs-sa"), &f.gcsCredentialsFile).Placeholder(tr("Optional")).Grow(1)
+						ui.TextInput(c.Key("gcs-sa"), &f.gcsCredentialsFile).Placeholder(locales.Optional()).Grow(1)
 						if a.desktopRunning {
-							if ui.Button(c, tr("Browse…")).Clicked() {
+							if ui.Button(c, locales.BrowsePicker()).Clicked() {
 								go a.pickFileInto(&f.gcsCredentialsFile)
 							}
 						}
@@ -427,57 +428,57 @@ func (a *App) renderConnectFormFields(c *ui.Context, algos *kopia.SupportedAlgor
 				})
 
 			case "azureBlob":
-				ui.Field(c, tr("Container Name"), func() {
+				ui.Field(c, locales.ContainerName(), func() {
 					ui.TextInput(c.Key("az-container"), &f.azContainer)
 				})
-				ui.Field(c, tr("Storage Account"), func() {
+				ui.Field(c, locales.StorageAccount(), func() {
 					ui.TextInput(c.Key("az-acct"), &f.azAccount)
 				})
-				ui.Field(c, tr("Storage Access Key"), func() {
-					ui.TextInput(c.Key("az-key"), &f.azKey).Password().Placeholder(tr("Optional"))
+				ui.Field(c, locales.StorageAccessKey(), func() {
+					ui.TextInput(c.Key("az-key"), &f.azKey).Password().Placeholder(locales.Optional())
 				})
-				ui.Field(c, tr("SAS Token"), func() {
-					ui.TextInput(c.Key("az-sas"), &f.azSASToken).Password().Placeholder(tr("Optional"))
+				ui.Field(c, locales.SasToken(), func() {
+					ui.TextInput(c.Key("az-sas"), &f.azSASToken).Password().Placeholder(locales.Optional())
 				})
-				ui.Field(c, tr("Storage Domain"), func() {
+				ui.Field(c, locales.StorageDomain(), func() {
 					ui.TextInput(c.Key("az-domain"), &f.azDomain).Placeholder("blob.core.windows.net")
 				})
-				ui.Field(c, tr("Object Prefix"), func() {
-					ui.TextInput(c.Key("az-prefix"), &f.azPrefix).Placeholder(tr("Optional"))
+				ui.Field(c, locales.ObjectPrefix(), func() {
+					ui.TextInput(c.Key("az-prefix"), &f.azPrefix).Placeholder(locales.Optional())
 				})
 
 			case "kopia-server":
-				ui.Field(c, tr("Server URL"), func() {
+				ui.Field(c, locales.ServerURL(), func() {
 					ui.TextInput(c.Key("ks-url"), &f.serverURL).Placeholder("https://kopia.example.com:51515")
 				})
-				ui.Field(c, tr("TLS Cert Fingerprint (SHA256)"), func() {
+				ui.Field(c, locales.TlsCertFingerprintSHA256(), func() {
 					ui.TextInput(c.Key("ks-fp"), &f.serverFingerprint).Placeholder("64-hex SHA256")
 				})
 
 			case "token":
-				ui.Field(c, tr("Paste Kopia Token"), func() {
+				ui.Field(c, locales.PasteKopiaToken(), func() {
 					ui.TextInput(c.Key("ks-token"), &f.token).Password().Placeholder("eyJ...")
 				})
 			}
 
 			if f.provider != "token" {
-				ui.Field(c, tr("Repository Password"), func() {
+				ui.Field(c, locales.RepositoryPassword(), func() {
 					ui.TextInput(c.Key("repo-pass"), &f.password).Password()
 				})
 				if f.modeSeg == 1 {
-					ui.Field(c, tr("Confirm Password"), func() {
+					ui.Field(c, locales.ConfirmPassword(), func() {
 						ui.TextInput(c.Key("repo-pass2"), &f.passwordRepeat).Password()
 					})
 				}
 			}
 
-			ui.Field(c, tr("Client Description"), func() {
+			ui.Field(c, locales.ClientDescription(), func() {
 				ui.TextInput(c.Key("repo-desc"), &f.description).Placeholder("My Mac")
 			})
 
 			if f.modeSeg == 0 {
 				ui.Field(c, "", func() {
-					ui.Checkbox(c, &f.readOnly, tr("Read-only Connection"))
+					ui.Checkbox(c, &f.readOnly, locales.ReadOnlyConnection())
 				})
 			}
 		})
@@ -485,12 +486,12 @@ func (a *App) renderConnectFormFields(c *ui.Context, algos *kopia.SupportedAlgor
 		// Advanced repository format options in Create mode
 		if f.modeSeg == 1 {
 			ui.Column(c).Gap(10).Children(func() {
-				ui.Checkbox(c, &f.showAdvanced, tr("Advanced Format Options"))
+				ui.Checkbox(c, &f.showAdvanced, locales.AdvancedFormatOptions())
 				if f.showAdvanced {
 					encChoices := algorithmNames(algosField(algos, "enc"), "AES256-GCM-HMAC-SHA256", "CHACHA20-POLY1305-HMAC-SHA256")
 					hashChoices := algorithmNames(algosField(algos, "hash"), "BLAKE2B-256-128", "BLAKE3-256-128", "HMAC-SHA256-128")
 					splitChoices := algorithmNames(algosField(algos, "split"), "DYNAMIC-4M-BUZHASH", "FIXED-4M")
-					eccDisabledLabel := tr("Disabled (Default)")
+					eccDisabledLabel := locales.DisabledDefault()
 					eccChoices := append([]string{eccDisabledLabel}, algorithmNames(algosField(algos, "ecc"), "REED-SOLOMON-CRC32")...)
 
 					if f.encryption == "" && len(encChoices) > 0 {
@@ -522,16 +523,16 @@ func (a *App) renderConnectFormFields(c *ui.Context, algos *kopia.SupportedAlgor
 
 					ui.Column(c).Padding(14).Radius(8).Background(p.subtleBg).Border(1, p.borderSoft).Children(func() {
 						ui.Form(c, func() {
-							ui.Field(c, tr("Encryption Algorithm"), func() {
+							ui.Field(c, locales.EncryptionAlgorithm(), func() {
 								ui.Select(c.Key("adv-enc"), &f.encryption, encChoices)
 							})
-							ui.Field(c, tr("Hash Algorithm"), func() {
+							ui.Field(c, locales.HashAlgorithm(), func() {
 								ui.Select(c.Key("adv-hash"), &f.hash, hashChoices)
 							})
-							ui.Field(c, tr("Content Splitter"), func() {
+							ui.Field(c, locales.ContentSplitter(), func() {
 								ui.Select(c.Key("adv-split"), &f.splitter, splitChoices)
 							})
-							ui.Field(c, tr("Reed-Solomon ECC"), func() {
+							ui.Field(c, locales.ReedSolomonECC(), func() {
 								if ui.Select(c.Key("adv-ecc"), &curECC, eccChoices).Changed() {
 									if curECC == eccDisabledLabel {
 										f.ecc = ""
@@ -541,7 +542,7 @@ func (a *App) renderConnectFormFields(c *ui.Context, algos *kopia.SupportedAlgor
 								}
 							})
 							if f.ecc != "" {
-								ui.Field(c, tr("ECC Overhead (%)"), func() {
+								ui.Field(c, locales.EccOverheadPercent(), func() {
 									ui.NumberInput(c.Key("adv-ecc-pct"), &f.eccPercent, 0, 20, 1).Width(140)
 								})
 							}
@@ -570,14 +571,14 @@ func (a *App) renderConnectFormActions(c *ui.Context, insideModal bool) {
 	f := &a.connectForm
 	ui.Row(c).Gap(8).Justify(ui.End).Shrink(0).Children(func() {
 		if insideModal {
-			if ui.Button(c, tr("Cancel")).Disabled(f.connecting).Clicked() {
+			if ui.Button(c, locales.Cancel()).Disabled(f.connecting).Clicked() {
 				f.clearSecrets()
 				a.connectModalOpen = false
 			}
 		}
-		submitLabel := tr("Connect Repository")
+		submitLabel := locales.ConnectRepository()
 		if f.modeSeg == 1 {
-			submitLabel = tr("Initialize & Connect")
+			submitLabel = locales.InitializeConnect()
 		}
 		ui.PrimaryButton(c, submitLabel).Disabled(f.connecting).OnClick(func() {
 			a.submitConnectOrCreate()
@@ -702,11 +703,11 @@ func expandFlagHomePath(tok string) string {
 func (a *App) submitConnectOrCreate() {
 	f := a.connectForm
 	if f.provider != "token" && strings.TrimSpace(f.password) == "" {
-		a.connectForm.errMsg = tr("Password is required")
+		a.connectForm.errMsg = locales.PasswordIsRequired()
 		return
 	}
 	if f.modeSeg == 1 && f.password != f.passwordRepeat {
-		a.connectForm.errMsg = tr("Passwords do not match")
+		a.connectForm.errMsg = locales.PasswordsDoNotMatch()
 		return
 	}
 
@@ -802,9 +803,9 @@ func (a *App) submitConnectOrCreate() {
 				a.manager.SyncProfiles(a.settings.Repositories)
 			}
 			if isCreate {
-				a.pendingToast = tr("Repository created and connected")
+				a.pendingToast = locales.RepositoryCreatedAndConnected()
 			} else {
-				a.pendingToast = tr("Repository connected")
+				a.pendingToast = locales.RepositoryConnected()
 			}
 		})
 	}()
@@ -823,7 +824,7 @@ func buildConnectRequest(f connectFormState, detectedRclone string) (kopia.Conne
 	case "token":
 		tok := strings.TrimSpace(f.token)
 		if tok == "" {
-			return req, fmt.Errorf("%s", tr("Token is required"))
+			return req, fmt.Errorf("%s", locales.TokenIsRequired())
 		}
 		req.Token = tok
 		return req, nil
@@ -831,7 +832,7 @@ func buildConnectRequest(f connectFormState, detectedRclone string) (kopia.Conne
 	case "kopia-server":
 		u := strings.TrimSpace(f.serverURL)
 		if u == "" {
-			return req, fmt.Errorf("%s", tr("Server URL is required"))
+			return req, fmt.Errorf("%s", locales.ServerURLIsRequired())
 		}
 		req.APIServer = &kopia.APIServerInfo{
 			BaseURL:                             u,
@@ -842,7 +843,7 @@ func buildConnectRequest(f connectFormState, detectedRclone string) (kopia.Conne
 	case "filesystem":
 		p := config.ExpandPath(f.fsPath)
 		if p == "" {
-			return req, fmt.Errorf("%s", tr("Repository directory path is required"))
+			return req, fmt.Errorf("%s", locales.RepositoryDirectoryPathIsRequired())
 		}
 		req.Storage = kopia.StorageConnection{
 			Type:   "filesystem",
@@ -851,7 +852,7 @@ func buildConnectRequest(f connectFormState, detectedRclone string) (kopia.Conne
 
 	case "s3":
 		if strings.TrimSpace(f.s3Bucket) == "" {
-			return req, fmt.Errorf("%s", tr("S3 bucket name is required"))
+			return req, fmt.Errorf("%s", locales.S3BucketNameIsRequired())
 		}
 		endpoint := strings.TrimSpace(f.s3Endpoint)
 		if endpoint == "" {
@@ -877,7 +878,7 @@ func buildConnectRequest(f connectFormState, detectedRclone string) (kopia.Conne
 
 	case "b2":
 		if strings.TrimSpace(f.b2Bucket) == "" {
-			return req, fmt.Errorf("%s", tr("B2 bucket name is required"))
+			return req, fmt.Errorf("%s", locales.B2BucketNameIsRequired())
 		}
 		req.Storage = kopia.StorageConnection{
 			Type: "b2",
@@ -894,10 +895,10 @@ func buildConnectRequest(f connectFormState, detectedRclone string) (kopia.Conne
 		user := strings.TrimSpace(f.sftpUsername)
 		remotePath := strings.TrimSpace(f.sftpPath)
 		if host == "" {
-			return req, fmt.Errorf("%s", tr("SFTP host is required"))
+			return req, fmt.Errorf("%s", locales.SftpHostIsRequired())
 		}
 		if user == "" || remotePath == "" {
-			return req, fmt.Errorf("%s", tr("SFTP username and remote path are required"))
+			return req, fmt.Errorf("%s", locales.SftpUsernameAndRemotePathAreRequired())
 		}
 		if strings.HasPrefix(host, "-") || strings.ContainsAny(host, " \t\r\n\x00") {
 			return req, fmt.Errorf("invalid SFTP host %q", host)
@@ -932,10 +933,10 @@ func buildConnectRequest(f connectFormState, detectedRclone string) (kopia.Conne
 			keyPath := config.ExpandPath(f.sftpKeyfile)
 			khPath := config.ExpandPath(f.sftpKnownHosts)
 			if f.sftpPassword == "" && keyPath == "" {
-				return req, fmt.Errorf("%s", tr("SFTP password or SSH key file is required"))
+				return req, fmt.Errorf("%s", locales.SftpPasswordOrSSHKeyFileIs())
 			}
 			if khPath == "" {
-				return req, fmt.Errorf("%s", tr("SFTP known_hosts file is required"))
+				return req, fmt.Errorf("%s", locales.SftpKnownHostsFileIsRequired())
 			}
 			cfg["password"] = f.sftpPassword
 			cfg["keyfile"] = keyPath
@@ -948,7 +949,7 @@ func buildConnectRequest(f connectFormState, detectedRclone string) (kopia.Conne
 
 	case "webdav":
 		if strings.TrimSpace(f.webdavURL) == "" {
-			return req, fmt.Errorf("%s", tr("WebDAV server URL is required"))
+			return req, fmt.Errorf("%s", locales.WebdavServerURLIsRequired())
 		}
 		req.Storage = kopia.StorageConnection{
 			Type: "webdav",
@@ -961,7 +962,7 @@ func buildConnectRequest(f connectFormState, detectedRclone string) (kopia.Conne
 
 	case "rclone":
 		if strings.TrimSpace(f.rcloneRemotePath) == "" {
-			return req, fmt.Errorf("%s", tr("Rclone remote path is required"))
+			return req, fmt.Errorf("%s", locales.RcloneRemotePathIsRequired())
 		}
 		rcloneCfg := map[string]any{
 			"remotePath": strings.TrimSpace(f.rcloneRemotePath),
@@ -987,7 +988,7 @@ func buildConnectRequest(f connectFormState, detectedRclone string) (kopia.Conne
 
 	case "gcs":
 		if strings.TrimSpace(f.gcsBucket) == "" {
-			return req, fmt.Errorf("%s", tr("GCS bucket name is required"))
+			return req, fmt.Errorf("%s", locales.GcsBucketNameIsRequired())
 		}
 		req.Storage = kopia.StorageConnection{
 			Type: "gcs",
@@ -1000,10 +1001,10 @@ func buildConnectRequest(f connectFormState, detectedRclone string) (kopia.Conne
 
 	case "azureBlob":
 		if strings.TrimSpace(f.azContainer) == "" || strings.TrimSpace(f.azAccount) == "" {
-			return req, fmt.Errorf("%s", tr("Azure container and storage account are required"))
+			return req, fmt.Errorf("%s", locales.AzureContainerAndStorageAccountAreRequired())
 		}
 		if strings.TrimSpace(f.azKey) == "" && strings.TrimSpace(f.azSASToken) == "" {
-			return req, fmt.Errorf("%s", tr("Azure storage access key or SAS token is required"))
+			return req, fmt.Errorf("%s", locales.AzureStorageAccessKeyOrSASToken())
 		}
 		azCfg := map[string]any{
 			"container":      strings.TrimSpace(f.azContainer),

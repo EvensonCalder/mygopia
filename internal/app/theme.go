@@ -9,6 +9,7 @@ import (
 
 	"mygopia/internal/config"
 	"mygopia/internal/kopia"
+	"mygopia/locales"
 )
 
 const (
@@ -89,7 +90,7 @@ type palette struct {
 // AccentOption defines a selectable theme accent preset across Light & Dark modes.
 type AccentOption struct {
 	Key          string
-	LabelKey     string
+	Label        func() string
 	LightAccent  ui.Color
 	LightHover   ui.Color
 	LightPressed ui.Color
@@ -101,7 +102,7 @@ type AccentOption struct {
 var accentOptions = []AccentOption{
 	{
 		Key:          config.AccentBlue,
-		LabelKey:     "Blue",
+		Label:        locales.ColorBlue,
 		LightAccent:  ui.Hex("#2563eb"),
 		LightHover:   ui.Hex("#1d4ed8"),
 		LightPressed: ui.Hex("#1e40af"),
@@ -111,7 +112,7 @@ var accentOptions = []AccentOption{
 	},
 	{
 		Key:          config.AccentIndigo,
-		LabelKey:     "Indigo",
+		Label:        locales.ColorIndigo,
 		LightAccent:  ui.Hex("#4f46e5"),
 		LightHover:   ui.Hex("#4338ca"),
 		LightPressed: ui.Hex("#3730a3"),
@@ -121,7 +122,7 @@ var accentOptions = []AccentOption{
 	},
 	{
 		Key:          config.AccentViolet,
-		LabelKey:     "Violet",
+		Label:        locales.ColorViolet,
 		LightAccent:  ui.Hex("#7c3aed"),
 		LightHover:   ui.Hex("#6d28d9"),
 		LightPressed: ui.Hex("#5b21b6"),
@@ -131,7 +132,7 @@ var accentOptions = []AccentOption{
 	},
 	{
 		Key:          config.AccentTeal,
-		LabelKey:     "Teal",
+		Label:        locales.ColorTeal,
 		LightAccent:  ui.Hex("#0d9488"),
 		LightHover:   ui.Hex("#0f766e"),
 		LightPressed: ui.Hex("#115e59"),
@@ -141,7 +142,7 @@ var accentOptions = []AccentOption{
 	},
 	{
 		Key:          config.AccentEmerald,
-		LabelKey:     "Green",
+		Label:        locales.ColorGreen,
 		LightAccent:  ui.Hex("#16a34a"),
 		LightHover:   ui.Hex("#15803d"),
 		LightPressed: ui.Hex("#166534"),
@@ -151,7 +152,7 @@ var accentOptions = []AccentOption{
 	},
 	{
 		Key:          config.AccentOrange,
-		LabelKey:     "Orange",
+		Label:        locales.ColorOrange,
 		LightAccent:  ui.Hex("#ea580c"),
 		LightHover:   ui.Hex("#c2410c"),
 		LightPressed: ui.Hex("#9a3412"),
@@ -161,7 +162,7 @@ var accentOptions = []AccentOption{
 	},
 	{
 		Key:          config.AccentRose,
-		LabelKey:     "Rose",
+		Label:        locales.ColorRose,
 		LightAccent:  ui.Hex("#e11d48"),
 		LightHover:   ui.Hex("#be123c"),
 		LightPressed: ui.Hex("#9f1239"),

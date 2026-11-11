@@ -16,6 +16,7 @@ import (
 
 	"mygopia/internal/config"
 	"mygopia/internal/kopia"
+	"mygopia/locales"
 )
 
 func (a *App) openSnapshotsForSource(src kopia.SourceInfo) {
@@ -264,7 +265,7 @@ func (a *App) loadDirectoryEntriesAsync(dirOID string) {
 func (a *App) renderSnapshotsView(c *ui.Context, _ config.RepoProfile, st kopia.RepoSnapshotState) {
 	sources := st.SourceList()
 	if len(sources) == 0 {
-		emptyState(c, iconSnapshots, tr("No backup sources yet"), tr("Add a local folder to start encrypted, deduplicated backups."), tr("Add Folder"), func() {
+		emptyState(c, iconSnapshots, locales.NoBackupSourcesYet(), locales.AddALocalFolderToStartEncrypted(), locales.AddFolder(), func() {
 			a.activeNav = navBackups
 			a.addSourceModalOpen = true
 		})
@@ -319,7 +320,7 @@ func (a *App) renderSnapshotTimelinePane(c *ui.Context, st kopia.RepoSnapshotSta
 
 	ui.Column(c).Fill().Padding(12).Gap(8).Background(p.cardBg).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
-			if ui.Select(c.Key("snap-source-sel"), &curSrcLabel, srcLabels).Label(tr("Select Source")).MinWidth(0).Grow(1).Changed() {
+			if ui.Select(c.Key("snap-source-sel"), &curSrcLabel, srcLabels).Label(locales.SelectSource()).MinWidth(0).Grow(1).Changed() {
 				for i, lb := range srcLabels {
 					if lb == curSrcLabel && i < len(srcKeys) {
 						a.snapSourceStr = srcKeys[i]
@@ -330,7 +331,7 @@ func (a *App) renderSnapshotTimelinePane(c *ui.Context, st kopia.RepoSnapshotSta
 				a.reloadSnapshotsAsync()
 			}
 			if len(a.snapshots) >= 2 {
-				if ui.Button(c, "").Label(tr("Compare…")).Tooltip(tr("Compare Snapshots")).Padding(5, 7).Children(func() {
+				if ui.Button(c, "").Label(locales.CompareProgress()).Tooltip(locales.CompareSnapshots()).Padding(5, 7).Children(func() {
 					ui.Icon(c, iconDiff).FontSize(13.5)
 				}).Clicked() {
 					src := parseTargetKey(a.snapSourceStr, st)
@@ -356,7 +357,7 @@ func (a *App) renderSnapshotTimelinePane(c *ui.Context, st kopia.RepoSnapshotSta
 		}
 
 		ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
-			if ui.Select(c.Key("snap-time-sel"), &curTimeLabel, timeLabels).Label(tr("Time Range")).MinWidth(0).Grow(1).Changed() {
+			if ui.Select(c.Key("snap-time-sel"), &curTimeLabel, timeLabels).Label(locales.TimeRange()).MinWidth(0).Grow(1).Changed() {
 				for i, lb := range timeLabels {
 					if lb == curTimeLabel {
 						a.snapTimePreset = i
@@ -384,21 +385,21 @@ func (a *App) renderSnapshotTimelinePane(c *ui.Context, st kopia.RepoSnapshotSta
 		}
 
 		if ui.SearchField(c.Key("snap-note-filter"), &a.snapFilterText).
-			Placeholder(tr("Filter notes or time…")).
+			Placeholder(locales.FilterNotesOrTime()).
 			Changed() {
 			a.snapDisplayLimit = defaultSnapshotPageSize
 		}
 
 		ui.Row(c).AlignItems(ui.Center).Wrap().Gap(10).Children(func() {
-			if ui.Checkbox(c, &a.snapShowIdentical, tr("Show identical snapshots")).Changed() {
+			if ui.Checkbox(c, &a.snapShowIdentical, locales.ShowIdenticalSnapshots()).Changed() {
 				a.reloadSnapshotsAsync()
 			}
-			if ui.Checkbox(c, &a.snapPinnedOnly, tr("Pinned only")).Changed() {
+			if ui.Checkbox(c, &a.snapPinnedOnly, locales.PinnedOnly()).Changed() {
 				a.snapDisplayLimit = defaultSnapshotPageSize
 			}
 			if a.hasActiveSnapTimelineFilters() {
 				ui.Spacer(c)
-				if compactButton(c, tr("Reset Filters")).Clicked() {
+				if compactButton(c, locales.ResetFilters()).Clicked() {
 					a.resetSnapTimelineFilters()
 				}
 			}
@@ -408,18 +409,18 @@ func (a *App) renderSnapshotTimelinePane(c *ui.Context, st kopia.RepoSnapshotSta
 
 		if a.snapLoading && len(a.snapshots) == 0 {
 			ui.Column(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-				ui.Text(c, tr("Loading…")).TextColor(p.muted)
+				ui.Text(c, locales.Loading()).TextColor(p.muted)
 			})
 			return
 		}
 		if len(a.snapshots) == 0 {
-			emptyState(c, iconSnapshots, tr("No snapshots for this source"), "", "", nil)
+			emptyState(c, iconSnapshots, locales.NoSnapshotsForThisSource(), "", "", nil)
 			return
 		}
 
 		filteredIdx := a.filteredSnapshotIndices()
 		if len(filteredIdx) == 0 {
-			emptyState(c, iconSearch, tr("No matching items"), "", tr("Reset Filters"), func() {
+			emptyState(c, iconSearch, locales.NoMatchingItems(), "", locales.ResetFilters(), func() {
 				a.resetSnapTimelineFilters()
 			})
 			return
@@ -456,14 +457,14 @@ func (a *App) renderSnapshotTimelinePane(c *ui.Context, st kopia.RepoSnapshotSta
 				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
 					ui.Text(c, formatTimestamp(sn.StartTime.Time)).FontSize(12.5).FontWeight(600).FontFeatures("tnum").TextColor(fg).Grow(1).SingleLine()
 					if len(sn.Pins) > 0 {
-						tableStatusPill(c, selected, tr("Pinned"), p.accent, p.accentSoft)
+						tableStatusPill(c, selected, locales.Pinned(), p.accent, p.accentSoft)
 					}
 				})
 				sizeStr := "—"
 				filesStr := ""
 				if sn.Summary != nil {
 					sizeStr = formatBytes(sn.Summary.TotalFileSize)
-					filesStr = intToStr(int(sn.Summary.TotalFileCount)) + " " + tr("Files")
+					filesStr = intToStr(int(sn.Summary.TotalFileCount)) + " " + locales.Files()
 				}
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, sizeStr).FontSize(11.5).FontFeatures("tnum").TextColor(subFg)
@@ -478,30 +479,30 @@ func (a *App) renderSnapshotTimelinePane(c *ui.Context, st kopia.RepoSnapshotSta
 
 			row.ContextMenu(func(m *ui.Menu) {
 				isPinned := len(sn.Pins) > 0
-				pinLabel := tr("Pin")
+				pinLabel := locales.Pin()
 				if isPinned {
-					pinLabel = tr("Unpin")
+					pinLabel = locales.Unpin()
 				}
 				if m.Item(pinLabel).Chosen() {
 					a.toggleSnapshotPinAction(sn)
 				}
-				if m.Item(tr("Edit Note")).Chosen() {
+				if m.Item(locales.EditNote()).Chosen() {
 					a.editSnapID = sn.ID
 					a.editSnapDesc = sn.Description
 					a.editSnapPinned = isPinned
 					a.editSnapModalOpen = true
 				}
 				if len(a.snapshots) >= 2 && sn.ID != a.snapshots[0].ID {
-					if m.Item(tr("Compare with Latest")).Chosen() {
+					if m.Item(locales.CompareWithLatest()).Chosen() {
 						src := parseTargetKey(a.snapSourceStr, st)
 						a.openDiffForSource(src, sn.ID, a.snapshots[0].ID)
 					}
 				}
-				if m.Item(tr("Restore…")).Chosen() {
+				if m.Item(locales.Restore()).Chosen() {
 					a.openRestoreModal(a.settings.ActiveRepoID, sn.RootID, "snapshot-"+sn.StartTime.Local().Format("20060102-1504"))
 				}
 				m.Separator()
-				if m.Item(tr("Delete Snapshot")).Chosen() {
+				if m.Item(locales.DeleteSnapshot()).Chosen() {
 					a.deleteSnapshotAction(sn)
 				}
 			})
@@ -515,17 +516,17 @@ func (a *App) renderSnapshotTimelinePane(c *ui.Context, st kopia.RepoSnapshotSta
 		// Lazy load footer when snapshots exceed display limit
 		if remaining := len(filteredIdx) - shownCount; remaining > 0 {
 			ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
-				if compactButton(c, trf("Load More (%d left)", remaining)).Grow(1).Clicked() {
+				if compactButton(c, locales.LoadMoreRemaining(remaining)).Grow(1).Clicked() {
 					a.snapDisplayLimit += defaultSnapshotPageSize
 				}
 				if remaining > defaultSnapshotPageSize {
-					if compactButton(c, trf("Show All (%d)", len(filteredIdx))).Clicked() {
+					if compactButton(c, locales.ShowAllCount(len(filteredIdx))).Clicked() {
 						a.snapDisplayLimit = len(filteredIdx)
 					}
 				}
 			})
 		} else if len(filteredIdx) != len(a.snapshots) {
-			ui.Text(c, trf("%d / %d snapshots", len(filteredIdx), len(a.snapshots))).FontSize(11).TextColor(p.muted)
+			ui.Text(c, locales.FilteredOfTotalSnapshots(len(filteredIdx), len(a.snapshots))).FontSize(11).TextColor(p.muted)
 		}
 	})
 }
@@ -563,7 +564,7 @@ func (a *App) filteredSnapshotIndices() []int {
 
 func (a *App) renderSnapshotBrowserPane(c *ui.Context, st kopia.RepoSnapshotState) {
 	if a.selectedSnapIdx < 0 || a.selectedSnapIdx >= len(a.snapshots) {
-		emptyState(c, iconFolder, tr("Select a snapshot to browse files"), "", "", nil)
+		emptyState(c, iconFolder, locales.SelectASnapshotToBrowseFiles(), "", "", nil)
 		return
 	}
 	if len(a.browserBreadcrumbs) > 1 && c.Shortcut(ui.Cmd, ui.KeyUp) {
@@ -591,7 +592,7 @@ func (a *App) renderSnapshotBrowserPane(c *ui.Context, st kopia.RepoSnapshotStat
 		// Snapshot Action Header
 		ui.Row(c).AlignItems(ui.Center).Gap(8).Wrap().Children(func() {
 			if len(a.browserBreadcrumbs) > 1 {
-				if ui.Button(c, tr("Up")).Clicked() {
+				if ui.Button(c, locales.Up()).Clicked() {
 					prevIdx := len(a.browserBreadcrumbs) - 2
 					a.browserBreadcrumbs = a.browserBreadcrumbs[:prevIdx+1]
 					a.browserPageOffset = 0
@@ -602,14 +603,14 @@ func (a *App) renderSnapshotBrowserPane(c *ui.Context, st kopia.RepoSnapshotStat
 			crumbNames := make([]string, len(a.browserBreadcrumbs))
 			for i, cr := range a.browserBreadcrumbs {
 				if i == 0 && cr.Name == "" {
-					crumbNames[i] = tr("Root")
+					crumbNames[i] = locales.Root()
 				} else {
 					crumbNames[i] = cr.Name
 				}
 			}
 			chosenCrumb := len(crumbNames) - 1
 			if len(crumbNames) > 0 {
-				if ui.Breadcrumbs(c, crumbNames, &chosenCrumb).Label(tr("Path")).Changed() && chosenCrumb >= 0 && chosenCrumb < len(a.browserBreadcrumbs) {
+				if ui.Breadcrumbs(c, crumbNames, &chosenCrumb).Label(locales.Path()).Changed() && chosenCrumb >= 0 && chosenCrumb < len(a.browserBreadcrumbs) {
 					a.browserBreadcrumbs = a.browserBreadcrumbs[:chosenCrumb+1]
 					a.browserPageOffset = 0
 					a.loadDirectoryEntriesAsync(a.browserBreadcrumbs[chosenCrumb].OID)
@@ -621,7 +622,7 @@ func (a *App) renderSnapshotBrowserPane(c *ui.Context, st kopia.RepoSnapshotStat
 			curSnapSrc := parseTargetKey(a.snapSourceStr, st)
 			_, snapHasLocal := a.resolveLocalDiffDir(curSnapSrc, st)
 			if len(a.snapshots) >= 2 || (len(a.snapshots) == 1 && snapHasLocal) {
-				ui.Button(c, tr("Compare…")).OnClick(func() {
+				ui.Button(c, locales.CompareProgress()).OnClick(func() {
 					if sn.ID == a.snapshots[0].ID {
 						if snapHasLocal {
 							a.openDiffForSource(curSnapSrc, sn.ID, diffTargetLocalDir)
@@ -636,36 +637,36 @@ func (a *App) renderSnapshotBrowserPane(c *ui.Context, st kopia.RepoSnapshotStat
 
 			if mountedPath != "" {
 				if a.desktopRunning {
-					ui.Button(c, tr("Open Mount")).OnClick(func() {
+					ui.Button(c, locales.OpenMount()).OnClick(func() {
 						_ = mygo.Shell.OpenPath(mountedPath)
 					})
 				}
-				ui.Button(c, tr("Unmount")).OnClick(func() {
+				ui.Button(c, locales.Unmount()).OnClick(func() {
 					a.unmountAction(sn.RootID)
 				})
 			} else {
-				ui.Button(c, tr("Mount")).OnClick(func() {
+				ui.Button(c, locales.Mount()).OnClick(func() {
 					a.mountAction(sn.RootID)
 				})
 			}
 
 			isPinned := len(sn.Pins) > 0
-			pinBtnText := tr("Pin")
+			pinBtnText := locales.Pin()
 			if isPinned {
-				pinBtnText = tr("Unpin")
+				pinBtnText = locales.Unpin()
 			}
 			ui.Button(c, pinBtnText).OnClick(func() {
 				a.toggleSnapshotPinAction(sn)
 			})
 
-			ui.Button(c, tr("Edit Note")).OnClick(func() {
+			ui.Button(c, locales.EditNote()).OnClick(func() {
 				a.editSnapID = sn.ID
 				a.editSnapDesc = sn.Description
 				a.editSnapPinned = isPinned
 				a.editSnapModalOpen = true
 			})
 
-			ui.PrimaryButton(c, tr("Restore…")).OnClick(func() {
+			ui.PrimaryButton(c, locales.Restore()).OnClick(func() {
 				defName := "restore"
 				if len(a.browserBreadcrumbs) > 1 {
 					defName = a.browserBreadcrumbs[len(a.browserBreadcrumbs)-1].Name
@@ -677,18 +678,18 @@ func (a *App) renderSnapshotBrowserPane(c *ui.Context, st kopia.RepoSnapshotStat
 		// Directory Entry Filter Bar (Name, Kind, Size, Modified Time Range)
 		ui.Row(c).AlignItems(ui.Center).Wrap().Gap(8).Children(func() {
 			if ui.SearchField(c.Key("dir-filter"), &a.browserFilter).
-				Placeholder(tr("Filter current folder…")).
+				Placeholder(locales.FilterCurrentFolder()).
 				Grow(1).
 				MinWidth(150).
 				Changed() {
 				a.browserPageOffset = 0
 			}
 
-			if ui.Segmented(c, &a.browserKindSeg, tr("All"), tr("Files"), tr("Folders")).Changed() {
+			if ui.Segmented(c, &a.browserKindSeg, locales.All(), locales.Files(), locales.Folders()).Changed() {
 				a.browserPageOffset = 0
 			}
 
-			sizeLabels := []string{tr("Any Size"), tr("> 1 MB"), tr("> 10 MB"), tr("> 100 MB"), tr("> 1 GB")}
+			sizeLabels := []string{locales.AnySize(), locales.SizeOver1MB(), locales.SizeOver10MB(), locales.SizeOver100MB(), locales.SizeOver1GB()}
 			if a.browserSizePreset < 0 || a.browserSizePreset >= len(sizeLabels) {
 				a.browserSizePreset = 0
 			}
@@ -719,7 +720,7 @@ func (a *App) renderSnapshotBrowserPane(c *ui.Context, st kopia.RepoSnapshotStat
 			}
 
 			if a.browserFilter != "" || a.browserKindSeg != 0 || a.browserSizePreset != 0 || a.browserTimePreset != 0 {
-				if compactButton(c, tr("Reset Filters")).Clicked() {
+				if compactButton(c, locales.ResetFilters()).Clicked() {
 					a.browserFilter = ""
 					a.browserKindSeg = 0
 					a.browserSizePreset = 0
@@ -752,10 +753,10 @@ func (a *App) renderSnapshotBrowserPane(c *ui.Context, st kopia.RepoSnapshotStat
 		}
 
 		cols := []ui.TableColumn{
-			{ID: "name", Title: tr("Name"), Width: 270, MinWidth: 160, Sortable: true},
-			{ID: "size", Title: tr("Size"), Width: 96, Align: ui.End, Sortable: true},
-			{ID: "mtime", Title: tr("Modified"), Width: 172, Sortable: true},
-			{ID: "oid", Title: tr("Object ID"), Width: 150},
+			{ID: "name", Title: locales.Name(), Width: 270, MinWidth: 160, Sortable: true},
+			{ID: "size", Title: locales.Size(), Width: 96, Align: ui.End, Sortable: true},
+			{ID: "mtime", Title: locales.Modified(), Width: 172, Sortable: true},
+			{ID: "oid", Title: locales.ObjectID(), Width: 150},
 		}
 
 		a.browserTable.Selected = &a.browserSelectedRow
@@ -778,23 +779,23 @@ func (a *App) renderSnapshotBrowserPane(c *ui.Context, st kopia.RepoSnapshotStat
 					})
 					rowBox.ContextMenu(func(m *ui.Menu) {
 						if ent.IsDir() {
-							if m.Item(tr("Browse")).Chosen() {
+							if m.Item(locales.Browse()).Chosen() {
 								a.enterSubdirectory(ent)
 							}
 						} else if a.desktopRunning {
-							if m.Item(tr("Save File…")).Chosen() {
+							if m.Item(locales.SaveFile()).Chosen() {
 								go a.saveSingleObjectInteractive(a.settings.ActiveRepoID, ent.ObjectID, ent.Name)
 							}
 						}
-						if m.Item(tr("Restore…")).Chosen() {
+						if m.Item(locales.Restore()).Chosen() {
 							a.openRestoreModal(a.settings.ActiveRepoID, ent.ObjectID, ent.Name)
 						}
 						m.Separator()
-						if m.Item(tr("Copy Object ID")).Chosen() {
+						if m.Item(locales.CopyObjectID()).Chosen() {
 							if a.desktopRunning {
 								mygo.Clipboard.WriteText(ent.ObjectID)
 							}
-							a.toast(tr("Copied to clipboard"), false)
+							a.toast(locales.CopiedToClipboard(), false)
 						}
 					})
 				case 1:
@@ -903,20 +904,20 @@ func (a *App) renderSnapshotModals(c *ui.Context) {
 	if a.editSnapModalOpen {
 		ui.Modal(c, &a.editSnapModalOpen, func() {
 			ui.Column(c).Width(420).Gap(16).Children(func() {
-				ui.Text(c, tr("Edit Note")).FontSize(15.5).FontWeight(600)
+				ui.Text(c, locales.EditNote()).FontSize(15.5).FontWeight(600)
 				ui.Form(c, func() {
-					ui.Field(c, tr("Snapshot Note"), func() {
+					ui.Field(c, locales.SnapshotNote(), func() {
 						ui.TextInput(c.Key("snap-note-in"), &a.editSnapDesc).AutoFocus()
 					})
 					ui.Field(c, "", func() {
-						ui.Checkbox(c, &a.editSnapPinned, tr("Pinned"))
+						ui.Checkbox(c, &a.editSnapPinned, locales.Pinned())
 					})
 				})
 				ui.Row(c).Gap(8).Justify(ui.End).Padding(4, 0, 0, 0).Children(func() {
-					if ui.Button(c, tr("Cancel")).Clicked() {
+					if ui.Button(c, locales.Cancel()).Clicked() {
 						a.editSnapModalOpen = false
 					}
-					ui.PrimaryButton(c, tr("Save Note")).OnClick(func() {
+					ui.PrimaryButton(c, locales.SaveNote()).OnClick(func() {
 						a.editSnapModalOpen = false
 						a.saveSnapshotEditAction(a.editSnapID, a.editSnapDesc, a.editSnapPinned)
 					})
@@ -928,13 +929,13 @@ func (a *App) renderSnapshotModals(c *ui.Context) {
 	if a.restoreModalOpen {
 		ui.Modal(c, &a.restoreModalOpen, func() {
 			ui.Column(c).Width(500).Gap(16).Children(func() {
-				ui.Text(c, tr("Restore from Snapshot")).FontSize(15.5).FontWeight(600)
+				ui.Text(c, locales.RestoreFromSnapshot()).FontSize(15.5).FontWeight(600)
 				ui.Row(c).Children(func() {
-					ui.Segmented(c, &a.restoreMode, tr("Restore to Folder"), tr("Export as ZIP Archive"), tr("Export as TAR Archive"))
+					ui.Segmented(c, &a.restoreMode, locales.RestoreToFolder(), locales.ExportAsZIPArchive(), locales.ExportAsTARArchive())
 				})
 
 				ui.Form(c, func() {
-					ui.Field(c, tr("Target Destination"), func() {
+					ui.Field(c, locales.TargetDestination(), func() {
 						ui.Row(c).Gap(8).Children(func() {
 							placeholder := defaultRestorePlaceholder(a.restoreDefaultName)
 							if a.restoreMode == 1 {
@@ -944,7 +945,7 @@ func (a *App) renderSnapshotModals(c *ui.Context) {
 							}
 							ui.TextInput(c.Key("restore-dest"), &a.restoreDestPath).Placeholder(placeholder).Grow(1)
 							if a.desktopRunning {
-								if ui.Button(c, tr("Browse…")).Clicked() {
+								if ui.Button(c, locales.BrowsePicker()).Clicked() {
 									if a.restoreMode == 0 {
 										go a.pickDirectoryInto(&a.restoreDestPath)
 									} else {
@@ -970,20 +971,20 @@ func (a *App) renderSnapshotModals(c *ui.Context) {
 
 				if a.restoreMode == 0 {
 					ui.Column(c).Padding(12, 14).Gap(8).Radius(8).Background(p.subtleBg).Border(1, p.borderSoft).Children(func() {
-						ui.Checkbox(c, &a.restoreOverwriteF, tr("Overwrite existing files"))
-						ui.Checkbox(c, &a.restoreOverwriteD, tr("Overwrite existing directories"))
-						ui.Checkbox(c, &a.restoreIncremental, tr("Incremental (skip unchanged files)"))
-						ui.Checkbox(c, &a.restoreDeleteExtra, tr("Delete extra files in target"))
-						ui.Checkbox(c, &a.restoreIgnorePerm, tr("Ignore permission errors"))
-						ui.Checkbox(c, &a.restoreSkipOwners, tr("Skip restoring file owners"))
+						ui.Checkbox(c, &a.restoreOverwriteF, locales.OverwriteExistingFiles())
+						ui.Checkbox(c, &a.restoreOverwriteD, locales.OverwriteExistingDirectories())
+						ui.Checkbox(c, &a.restoreIncremental, locales.IncrementalSkipUnchangedFiles())
+						ui.Checkbox(c, &a.restoreDeleteExtra, locales.DeleteExtraFilesInTarget())
+						ui.Checkbox(c, &a.restoreIgnorePerm, locales.IgnorePermissionErrors())
+						ui.Checkbox(c, &a.restoreSkipOwners, locales.SkipRestoringFileOwners())
 					})
 				}
 
 				ui.Row(c).Gap(8).Justify(ui.End).Padding(4, 0, 0, 0).Children(func() {
-					if ui.Button(c, tr("Cancel")).Clicked() {
+					if ui.Button(c, locales.Cancel()).Clicked() {
 						a.restoreModalOpen = false
 					}
-					ui.PrimaryButton(c, tr("Start Restore")).Disabled(strings.TrimSpace(a.restoreDestPath) == "").OnClick(func() {
+					ui.PrimaryButton(c, locales.StartRestore()).Disabled(strings.TrimSpace(a.restoreDestPath) == "").OnClick(func() {
 						a.restoreModalOpen = false
 						a.executeRestoreAction()
 					})
@@ -1053,7 +1054,7 @@ func (a *App) executeRestoreAction() {
 			return
 		}
 		a.manager.RefreshRepo(ctx, repoID, false)
-		a.toast(tr("Restore task started"), false)
+		a.toast(locales.RestoreTaskStarted(), false)
 	}()
 }
 
@@ -1082,7 +1083,7 @@ func (a *App) saveSingleObjectInteractive(repoID, oid, defaultFilename string) {
 		a.toast(err.Error(), true)
 		return
 	}
-	a.toast(trf("File saved to %s", savePath), false)
+	a.toast(locales.FileSavedTo(savePath), false)
 }
 
 func (a *App) toggleSnapshotPinAction(sn *kopia.Snapshot) {
@@ -1128,7 +1129,7 @@ func (a *App) runSnapshotEdit(req kopia.EditSnapshotsRequest) {
 			a.toast(err.Error(), true)
 			return
 		}
-		a.toast(tr("Snapshot updated"), false)
+		a.toast(locales.SnapshotUpdated(), false)
 		a.uiUpdate(func() {
 			a.reloadSnapshotsAsync()
 		})
@@ -1149,7 +1150,7 @@ func (a *App) deleteSnapshotAction(sn *kopia.Snapshot) {
 		}
 	}
 	go func() {
-		if !a.confirmDestructive(tr("Delete Snapshot")+" ("+formatTimestamp(sn.StartTime.Time)+")?", tr("Delete")) {
+		if !a.confirmDestructive(locales.DeleteSnapshot()+" ("+formatTimestamp(sn.StartTime.Time)+")?", locales.Delete()) {
 			return
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -1167,7 +1168,7 @@ func (a *App) deleteSnapshotAction(sn *kopia.Snapshot) {
 			a.toast(err.Error(), true)
 			return
 		}
-		a.toast(tr("Snapshot deleted"), false)
+		a.toast(locales.SnapshotDeleted(), false)
 		a.uiUpdate(func() {
 			a.reloadSnapshotsAsync()
 		})
@@ -1193,7 +1194,7 @@ func (a *App) mountAction(rootOID string) {
 			return
 		}
 		a.manager.RefreshRepo(ctx, repoID, false)
-		a.toast(trf("Snapshot mounted at %s", m.Path), false)
+		a.toast(locales.SnapshotMountedAt(m.Path), false)
 		if a.desktopRunning && m.Path != "" {
 			_ = mygo.Shell.OpenPath(m.Path)
 		}
@@ -1218,6 +1219,6 @@ func (a *App) unmountAction(rootOID string) {
 			return
 		}
 		a.manager.RefreshRepo(ctx, repoID, false)
-		a.toast(tr("Snapshot unmounted"), false)
+		a.toast(locales.SnapshotUnmounted(), false)
 	}()
 }

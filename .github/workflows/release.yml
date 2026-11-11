@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version (without leading 'v', e.g. 0.3.0)"
+        description: "Release version (without leading 'v', e.g. 0.3.1)"
         required: false
-        default: "0.3.0"
+        default: "0.3.1"
       draft:
         description: "Create as draft release"
         type: boolean
@@ -30,11 +30,18 @@ jobs:
     steps:
       - name: Determine version & tag
         id: meta
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [[ "${{ github.event_name }}" == "push" ]]; then
             TAG="${GITHUB_REF_NAME}"
             VER="${TAG#v}"
-            DRAFT="false"
+            IS_PRIVATE=$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.private' 2>/dev/null || echo "false")
+            if [[ "$IS_PRIVATE" == "true" ]]; then
+              DRAFT="true"
+            else
+              DRAFT="false"
+            fi
           else
             RAW="${{ inputs.version }}"
             VER="${RAW#v}"

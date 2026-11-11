@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"flag"
 	"go/ast"
 	"go/parser"
@@ -9,19 +10,19 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	_ "github.com/egoist/mygo/locales/ja"
-	_ "github.com/egoist/mygo/locales/zh-Hans"
-	_ "github.com/egoist/mygo/locales/zh-Hant"
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 
 	"mygopia/internal/config"
 	"mygopia/internal/index"
 	"mygopia/internal/kopia"
+	"mygopia/locales"
 )
 
 var screenshotOutDir = flag.String("screenshots", "", "optional directory to write rendered UI PNG screenshots")
@@ -342,39 +343,90 @@ func newRichTestApp(t *testing.T, cfg config.Settings, preferredLangs []string) 
 	return a
 }
 
-func extractFmtVerbs(s string) string {
-	var verbs []byte
-	for i := 0; i < len(s); i++ {
-		if s[i] == '%' && i+1 < len(s) {
-			if s[i+1] == '%' {
-				i++
+func TestAllTranslationKeysCovered(t *testing.T) {
+	expectedLangs := []string{
+		config.LangEN,
+		config.LangZhHans,
+		config.LangZhHant,
+		config.LangJA,
+		config.LangFR,
+		config.LangDE,
+		config.LangES,
+	}
+
+	localesDir := filepath.Join("..", "..", "locales")
+	catalogs := make(map[string]map[string]string, len(expectedLangs))
+	var problems []string
+
+	for _, lang := range expectedLangs {
+		path := filepath.Join(localesDir, lang+".json")
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		var obj map[string]string
+		if err := json.Unmarshal(raw, &obj); err != nil {
+			t.Fatalf("unmarshal %s: %v", path, err)
+		}
+		if obj["@@locale"] != lang {
+			problems = append(problems, path+" @@locale="+strconv.Quote(obj["@@locale"])+" want "+strconv.Quote(lang))
+		}
+		delete(obj, "@@locale")
+		catalogs[lang] = obj
+	}
+
+	enCat := catalogs[config.LangEN]
+	if len(enCat) == 0 {
+		t.Fatal("en.json has no messages")
+	}
+
+	enArgs := make(map[string][]i18n.Arg, len(enCat))
+	for k, msg := range enCat {
+		if strings.TrimSpace(msg) == "" {
+			problems = append(problems, "en empty message for "+k)
+			continue
+		}
+		parsed, err := i18n.ParseMessage(msg)
+		if err != nil {
+			problems = append(problems, "en parse "+k+": "+err.Error())
+			continue
+		}
+		enArgs[k] = parsed.Args()
+	}
+
+	for _, lang := range expectedLangs[1:] {
+		cat := catalogs[lang]
+		for k := range enCat {
+			val, ok := cat[k]
+			if !ok || strings.TrimSpace(val) == "" {
+				problems = append(problems, lang+" missing or empty key "+k)
 				continue
 			}
-			verbs = append(verbs, '%', s[i+1])
-			i++
+			parsed, err := i18n.ParseMessage(val)
+			if err != nil {
+				problems = append(problems, lang+" parse "+k+": "+err.Error())
+				continue
+			}
+			if !slices.Equal(parsed.Args(), enArgs[k]) {
+				problems = append(problems, lang+" ICU args mismatch for "+k)
+			}
+		}
+		for k := range cat {
+			if _, ok := enCat[k]; !ok {
+				problems = append(problems, lang+" extra key not in peer catalogs: "+k)
+			}
 		}
 	}
-	return string(verbs)
-}
 
-func TestAllTranslationKeysCovered(t *testing.T) {
+	// Ensure no legacy English-keyed tr(...) or trf(...) calls remain in Go source files.
 	fset := token.NewFileSet()
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatalf("readdir: %v", err)
 	}
-	var problems []string
-	requiredKeys := map[string]string{}
-	for k := range zhHansCatalog {
-		requiredKeys[k] = "zhHansCatalog"
-	}
-	for _, acc := range accentOptions {
-		requiredKeys[acc.LabelKey] = "accentOptions"
-	}
-
 	for _, ent := range entries {
 		name := ent.Name()
-		if ent.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+		if ent.IsDir() || !strings.HasSuffix(name, ".go") {
 			continue
 		}
 		fileAST, err := parser.ParseFile(fset, name, nil, 0)
@@ -383,41 +435,19 @@ func TestAllTranslationKeysCovered(t *testing.T) {
 		}
 		ast.Inspect(fileAST, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
-			if !ok || len(call.Args) == 0 {
+			if !ok {
 				return true
 			}
-			ident, ok := call.Fun.(*ast.Ident)
-			if !ok || (ident.Name != "tr" && ident.Name != "trf") {
-				return true
+			if ident, ok := call.Fun.(*ast.Ident); ok && (ident.Name == "tr" || ident.Name == "trf") {
+				pos := fset.Position(call.Pos())
+				problems = append(problems, pos.String()+": legacy "+ident.Name+"() call must use locales package")
 			}
-			lit, ok := call.Args[0].(*ast.BasicLit)
-			if !ok || lit.Kind != token.STRING {
-				return true
-			}
-			key, err := strconv.Unquote(lit.Value)
-			if err != nil || key == "" {
-				return true
-			}
-			requiredKeys[key] = name
 			return true
 		})
 	}
 
-	catalogs := allTranslationCatalogs()
-	for lang, cat := range catalogs {
-		for key, origin := range requiredKeys {
-			val, exists := cat[key]
-			if !exists || strings.TrimSpace(val) == "" {
-				problems = append(problems, lang+" missing "+origin+": "+strconv.Quote(key))
-				continue
-			}
-			if extractFmtVerbs(key) != extractFmtVerbs(val) {
-				problems = append(problems, lang+" format verb mismatch for "+strconv.Quote(key)+": got "+strconv.Quote(val))
-			}
-		}
-	}
 	if len(problems) > 0 {
-		t.Fatalf("translation catalog issues (%d):\n%s", len(problems), strings.Join(problems, "\n"))
+		t.Fatalf("locale parity issues (%d):\n%s", len(problems), strings.Join(problems, "\n"))
 	}
 }
 
@@ -1125,7 +1155,7 @@ func TestRefreshSnapshotDiffDateRangeAndPagination(t *testing.T) {
 
 	// Verify activeRefreshStatus reports spinning=true and status text while refreshing or comparing
 	a.refreshing = true
-	a.refreshPhase = tr("Syncing repository…")
+	a.refreshPhase = locales.SyncingRepository()
 	tt.Frame()
 	prof, st := a.activeRepoState()
 	if spinning, label := a.activeRefreshStatus(prof, st); !spinning || label != "正在同步仓库…" {
