@@ -1,5 +1,5 @@
 // @scope.file app.core
-// @hash sha256:35c4a3caee9a794f
+// @hash sha256:4089493662be47e2
 // @implements spec.desktop_ui sha256:67347d72ce79be0a
 // @ref default github.com/egoist/mygo@0.9.1
 // @ref default github.com/egoist/mygo/ui@0.9.1
@@ -450,7 +450,7 @@ func (a *App) SeedSnapshotsAndEntries(sourceStr string, snaps []*kopia.Snapshot,
 }
 
 // AppVersion is the current application version of Mygopia.
-const AppVersion = "0.3.2"
+const AppVersion = "0.3.3"
 
 // RunDesktop launches the native desktop application window, menus, tray, and lifecycle hooks.
 func RunDesktop() error {

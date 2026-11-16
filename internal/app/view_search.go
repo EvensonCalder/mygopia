@@ -8,7 +8,7 @@
 // @ref default index.search sha256:dee0e6b0225186a9
 // @ref default kopia.manager sha256:332d271a00525eae
 // @ref default kopia.types sha256:06dd81559d688041
-// @ref default app.core sha256:35c4a3caee9a794f
+// @ref default app.core sha256:4089493662be47e2
 // @ref default app.icons sha256:a3df148b095e3dde
 // @ref default app.theme sha256:5167155d01845017
 // @ref default app.view_diff sha256:7a1c425c5f83abf0

@@ -8,7 +8,7 @@
 // @ref default kopia.client sha256:c1253141ff6ec455
 // @ref default kopia.manager sha256:332d271a00525eae
 // @ref default kopia.types sha256:06dd81559d688041
-// @ref default app.core sha256:35c4a3caee9a794f
+// @ref default app.core sha256:4089493662be47e2
 // Coalesced singleflight RPC loaders, multi-source snapshot/policy hot caches, upfront >=0.3s cost estimation, and 60fps memoization.
 
 package app

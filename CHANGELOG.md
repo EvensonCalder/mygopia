@@ -2,7 +2,7 @@
 
 All notable changes to **Mygopia** are documented in this file.
 
-## [Unreleased]
+## [0.3.3] - 2026-11-16
 
 ### Added
 - **Bounded `bbolt` + S2 Cache Engine & Configurable Disk Cap (`internal/index/store.go`, `internal/config/config.go`, `internal/app/view_tasks_repo_settings.go`)**:

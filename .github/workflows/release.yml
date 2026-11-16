@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version (without leading 'v', e.g. 0.3.2)"
+        description: "Release version (without leading 'v', e.g. 0.3.3)"
         required: false
-        default: "0.3.2"
+        default: "0.3.3"
       draft:
         description: "Create as draft release"
         type: boolean

@@ -9,7 +9,7 @@
 // @ref default kopia.manager sha256:332d271a00525eae
 // @ref default kopia.types sha256:06dd81559d688041
 // @ref default app.cache sha256:6e5e1b91e6872ef4
-// @ref default app.core sha256:35c4a3caee9a794f
+// @ref default app.core sha256:4089493662be47e2
 // @ref default app.theme sha256:5167155d01845017
 // @ref default app.view_connect sha256:90b187964bdf27c9
 // @ref default app.view_diff sha256:7a1c425c5f83abf0

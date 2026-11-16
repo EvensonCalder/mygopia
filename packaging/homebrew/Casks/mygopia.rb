@@ -1,5 +1,5 @@
 cask "mygopia" do
-  version "0.3.2"
+  version "0.3.3"
   sha256 :no_check
 
   url "https://github.com/EvensonCalder/mygopia/releases/download/v#{version}/mygopia-#{version}.dmg"

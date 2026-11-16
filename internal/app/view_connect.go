@@ -7,7 +7,7 @@
 // @ref default kopia.client sha256:c1253141ff6ec455
 // @ref default kopia.manager sha256:332d271a00525eae
 // @ref default kopia.types sha256:06dd81559d688041
-// @ref default app.core sha256:35c4a3caee9a794f
+// @ref default app.core sha256:4089493662be47e2
 // @ref default app.icons sha256:a3df148b095e3dde
 // @ref default app.theme sha256:5167155d01845017
 // Repository connection and initialization wizard supporting 11 storage backends and profile management.
