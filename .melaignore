@@ -5,6 +5,7 @@ resources/
 locales/
 *_test.go
 README*.md
+CHANGELOG.md
 THIRD_PARTY_NOTICES.md
 LICENSE
 mygo.json

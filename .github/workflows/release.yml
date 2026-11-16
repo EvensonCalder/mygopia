@@ -176,6 +176,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Download all build artifacts
         uses: actions/download-artifact@v8
@@ -206,17 +208,36 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ needs.prepare.outputs.tag }}"
+          VER="${{ needs.prepare.outputs.version }}"
           DRAFT_FLAG=""
           if [[ "${{ needs.prepare.outputs.draft }}" == "true" ]]; then
             DRAFT_FLAG="--draft"
           fi
+          NOTES_ARGS=(--generate-notes)
+          if [[ -f CHANGELOG.md ]]; then
+            awk -v ver="${VER}" '
+              $0 ~ "^## \\[" ver "\\]" { flag=1; next }
+              flag && /^## \[/ { exit }
+              flag { print }
+            ' CHANGELOG.md > /tmp/release-notes.md
+            if [[ -s /tmp/release-notes.md ]]; then
+              PREV_TAG=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+              if [[ -n "$PREV_TAG" ]]; then
+                printf "\n**Full Changelog**: https://github.com/%s/compare/%s...%s\n" "${GITHUB_REPOSITORY}" "${PREV_TAG}" "${TAG}" >> /tmp/release-notes.md
+              fi
+              NOTES_ARGS=(--notes-file /tmp/release-notes.md)
+            fi
+          fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" release-assets/* --clobber
+            if [[ -s /tmp/release-notes.md ]]; then
+              gh release edit "$TAG" --notes-file /tmp/release-notes.md
+            fi
           else
             gh release create "$TAG" release-assets/* \
               --title "Mygopia $TAG" \
               --target "${{ github.sha }}" \
-              --generate-notes \
+              "${NOTES_ARGS[@]}" \
               $DRAFT_FLAG
           fi
 
