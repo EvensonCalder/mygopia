@@ -103,7 +103,7 @@ func TestLocalDiffWithIgnoreRulesAndCacheTag(t *testing.T) {
 	if e, ok := byPath["work/important.tmp"]; !ok || e.Kind != DiffAdded {
 		t.Fatalf("expected negated !important.tmp to be Added, got ok=%v %+v", ok, e)
 	}
-	for _, ignoredPath := range []string{"debug.log", "node_modules", "node_modules/pkg/index.js", "work/scratch.tmp", "build-cache", "build-cache/blob.bin"} {
+	for _, ignoredPath := range []string{"debug.log", "node_modules", "node_modules/pkg/index.js", "work/scratch.tmp", "work/.kopiaignore", "build-cache", "build-cache/blob.bin"} {
 		if _, leaked := byPath[ignoredPath]; leaked {
 			t.Fatalf("expected ignored path %q to be excluded from next-backup local diff, got %+v", ignoredPath, byPath[ignoredPath])
 		}

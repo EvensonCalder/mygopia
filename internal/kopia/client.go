@@ -1,3 +1,9 @@
+// @scope.file kopia.client
+// @hash sha256:c1253141ff6ec455
+// @implements spec.kopia_engine sha256:44f993b3db7e5386
+// @ref default kopia.types sha256:06dd81559d688041
+// Cert-pinned HTTPS client for Kopia's UI (`/api/v1/*`) and Server Control (`/control/v1/*`) REST APIs.
+
 package kopia
 
 import (

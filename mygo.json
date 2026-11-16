@@ -2,7 +2,7 @@
   "name": "Mygopia",
   "slug": "mygopia",
   "identifier": "io.github.evensoncalder.mygopia",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "license": "MIT",
   "copyright": "Copyright © 2026 EvensonCalder. MIT License.",
   "main": "./cmd/mygopia",

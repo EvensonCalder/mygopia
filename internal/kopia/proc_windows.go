@@ -1,5 +1,7 @@
 //go:build windows
 
+// @scope.ignore-file : Windows build-tagged counterpart of kopia.proc
+
 package kopia
 
 import (

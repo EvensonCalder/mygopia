@@ -1,3 +1,10 @@
+// @scope.file index.search
+// @hash sha256:5340b345cb936708
+// @implements spec.dag_index sha256:70fe594b11b72420
+// @ref default index.engine sha256:675b0ff7a488f692
+// @ref default kopia.types sha256:06dd81559d688041
+// Multi-token, extension, size, and deleted-status in-memory version search over indexed repositories.
+
 package index
 
 import (

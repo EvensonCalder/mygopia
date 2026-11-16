@@ -1,3 +1,11 @@
+// @scope.file app.theme
+// @hash sha256:e59b9f47ce2180d6
+// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @ref default github.com/egoist/mygo/ui@0.9.1
+// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default kopia.types sha256:06dd81559d688041
+// Light/Dark color palettes, DPI-adaptive zoom calculation, and shared immediate-mode UI card/pill helpers.
+
 package app
 
 import (

@@ -1,3 +1,8 @@
+// @scope.file kopia.types
+// @hash sha256:06dd81559d688041
+// @implements spec.kopia_engine sha256:44f993b3db7e5386
+// Kopia REST API and CLI wire data models, flexible JSON unmarshalers, and policy/source types.
+
 package kopia
 
 import (
@@ -227,20 +232,20 @@ func (s SourceInfo) String() string {
 
 // UploadCounters tracks live upload progress for a running snapshot.
 type UploadCounters struct {
-	CachedBytes          int64  `json:"cachedBytes"`
-	HashedBytes          int64  `json:"hashedBytes"`
-	UploadedBytes        int64  `json:"uploadedBytes"`
-	EstimatedBytes       int64  `json:"estimatedBytes"`
-	CachedFiles          int32  `json:"cachedFiles"`
-	HashedFiles          int32  `json:"hashedFiles"`
-	ExcludedFiles        int32  `json:"excludedFiles"`
-	ExcludedDirs         int32  `json:"excludedDirs"`
-	Errors               int32  `json:"errors"`
-	IgnoredErrorCount    int32  `json:"ignoredErrorCount"`
-	EstimatedFiles       int64  `json:"estimatedFiles"`
-	CurrentDirectory     string `json:"directory"`
-	LastErrorPath        string `json:"lastErrorPath"`
-	LastError            string `json:"lastError"`
+	CachedBytes       int64  `json:"cachedBytes"`
+	HashedBytes       int64  `json:"hashedBytes"`
+	UploadedBytes     int64  `json:"uploadedBytes"`
+	EstimatedBytes    int64  `json:"estimatedBytes"`
+	CachedFiles       int32  `json:"cachedFiles"`
+	HashedFiles       int32  `json:"hashedFiles"`
+	ExcludedFiles     int32  `json:"excludedFiles"`
+	ExcludedDirs      int32  `json:"excludedDirs"`
+	Errors            int32  `json:"errors"`
+	IgnoredErrorCount int32  `json:"ignoredErrorCount"`
+	EstimatedFiles    int64  `json:"estimatedFiles"`
+	CurrentDirectory  string `json:"directory"`
+	LastErrorPath     string `json:"lastErrorPath"`
+	LastError         string `json:"lastError"`
 }
 
 // DirectorySummary summarizes counts and total size of a directory tree.

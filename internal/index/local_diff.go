@@ -1,3 +1,11 @@
+// @scope.file index.local_diff
+// @hash sha256:bf7d7f007cf45755
+// @implements spec.dag_index sha256:70fe594b11b72420
+// @ref default index.diff sha256:652a9afb2ec395c3
+// @ref default index.engine sha256:675b0ff7a488f692
+// @ref default kopia.types sha256:06dd81559d688041
+// Zero-subprocess snapshot-vs-local-directory preview diffing with `.kopiaignore` and `CACHEDIR.TAG` filtering.
+
 package index
 
 import (
@@ -255,13 +263,6 @@ func readFilteredLocalDir(
 		return nil, localRules, err
 	}
 
-	dotIgnoreSet := make(map[string]bool, len(opts.DotIgnoreFiles))
-	for _, df := range opts.DotIgnoreFiles {
-		if df != "" {
-			dotIgnoreSet[df] = true
-		}
-	}
-
 	out := make([]CachedEntry, 0, len(rawEntries))
 	for _, de := range rawEntries {
 		name := de.Name()
@@ -285,8 +286,7 @@ func readFilteredLocalDir(
 			relPath = dirRel + "/" + name
 		}
 
-		// Never ignore the .kopiaignore file itself unless explicitly matched by rules
-		if !dotIgnoreSet[name] && isIgnoredByRules(relPath, name, isDir, localRules) {
+		if isIgnoredByRules(relPath, name, isDir, localRules) {
 			continue
 		}
 		if isDir && opts.IgnoreCacheDirectories && hasCacheDirTag(filepath.Join(dirDiskPath, name)) {

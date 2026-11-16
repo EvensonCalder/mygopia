@@ -1,8 +1,14 @@
 package index
 
 import (
+	"context"
+	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -178,5 +184,75 @@ func TestDiskCacheConcurrentSaveAndMerge(t *testing.T) {
 	final := eng.loadDiskCache(repoID)
 	if len(final) != 17 {
 		t.Fatalf("expected 17 cached directories (1 base + 16 merged), got %d", len(final))
+	}
+}
+
+func TestIndexRepoCancelDuringTreeWalkResetsIndexingFlag(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	var cancelOnDirFetch atomic.Bool
+	cancelOnDirFetch.Store(true)
+
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/sources":
+			_ = json.NewEncoder(w).Encode(kopia.SourcesResponse{
+				Sources: []*kopia.SourceStatus{
+					{Source: kopia.SourceInfo{Host: "host", UserName: "user", Path: "/data"}},
+				},
+			})
+		case "/api/v1/snapshots":
+			_ = json.NewEncoder(w).Encode(kopia.SnapshotsResponse{
+				Snapshots: []*kopia.Snapshot{
+					{ID: "snap-1", RootID: "kdir-root"},
+				},
+			})
+		case "/api/v1/objects/kdir-root":
+			_ = json.NewEncoder(w).Encode(kopia.DirManifest{
+				StreamType: "kopia:directory",
+				Entries: []*kopia.DirEntry{
+					{Name: "hello.txt", Type: "f", ObjectID: "obj-1", FileSize: 5},
+				},
+			})
+			if cancelOnDirFetch.CompareAndSwap(true, false) {
+				cancel()
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: srv.Certificate().Raw,
+	})
+	cli, err := kopia.NewClient(kopia.ClientConfig{
+		BaseURL:       srv.URL,
+		Username:      "kopia",
+		Password:      "secret",
+		ServerCertPEM: certPEM,
+	})
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+
+	eng := NewEngine("", nil)
+	err = eng.IndexRepo(ctx, "repo-cancel", "Cancel Repo", cli)
+	if err == nil {
+		t.Fatalf("expected canceled IndexRepo to return error")
+	}
+	st, ok := eng.Stats("repo-cancel")
+	if !ok || st.Indexing {
+		t.Fatalf("expected Indexing=false after cancellation during tree walk, got ok=%v stats=%+v", ok, st)
+	}
+
+	// Verify subsequent IndexRepo call is not permanently wedged by a stuck Indexing=true flag
+	if err := eng.IndexRepo(context.Background(), "repo-cancel", "Cancel Repo", cli); err != nil {
+		t.Fatalf("expected subsequent IndexRepo to succeed, got: %v", err)
+	}
+	st2, ok := eng.Stats("repo-cancel")
+	if !ok || st2.Indexing || st2.FileCount != 1 {
+		t.Fatalf("expected 1 indexed file after retry, got ok=%v stats=%+v", ok, st2)
 	}
 }

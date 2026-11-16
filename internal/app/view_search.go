@@ -1,3 +1,20 @@
+// @scope.file app.view_search
+// @hash sha256:a19003c4c38dcc82
+// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @ref default github.com/egoist/mygo@0.9.1
+// @ref default github.com/egoist/mygo/ui@0.9.1
+// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default index.engine sha256:675b0ff7a488f692
+// @ref default index.search sha256:5340b345cb936708
+// @ref default kopia.manager sha256:b3cf54f5072da57d
+// @ref default kopia.types sha256:06dd81559d688041
+// @ref default app.core sha256:55bd88b4ebb6da29
+// @ref default app.icons sha256:a3df148b095e3dde
+// @ref default app.theme sha256:e59b9f47ce2180d6
+// @ref default app.view_diff sha256:0d80eba003c289aa
+// @ref default app.view_snapshots sha256:019743d5d1f2f9e1
+// Cross-repository file/folder version search view with version history inspection and one-click restore.
+
 package app
 
 import (

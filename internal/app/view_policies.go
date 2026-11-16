@@ -1,3 +1,16 @@
+// @scope.file app.view_policies
+// @hash sha256:1e415fd229eaa1fc
+// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @ref default github.com/egoist/mygo/ui@0.9.1
+// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default kopia.client sha256:c1253141ff6ec455
+// @ref default kopia.manager sha256:b3cf54f5072da57d
+// @ref default kopia.types sha256:06dd81559d688041
+// @ref default app.core sha256:55bd88b4ebb6da29
+// @ref default app.theme sha256:e59b9f47ce2180d6
+// @ref default app.view_connect sha256:a81f49bd79ce52f7
+// Retention, scheduling, compression, ignore-rule, error-handling, and hook policy editor view.
+
 package app
 
 import (
@@ -31,12 +44,12 @@ type policyFormDraft struct {
 	runMissed       bool
 
 	// Files & Ignores
-	ignoreRulesText    string
-	noParentIgnore     bool
-	dotIgnoreText      string
-	ignoreCacheDirs    bool
-	oneFileSystem      bool
-	maxFileSizeMB      float64
+	ignoreRulesText string
+	noParentIgnore  bool
+	dotIgnoreText   string
+	ignoreCacheDirs bool
+	oneFileSystem   bool
+	maxFileSizeMB   float64
 
 	// Compression
 	compressorName string
@@ -384,7 +397,7 @@ func (a *App) renderPolicyTargetsSidebar(c *ui.Context, st kopia.RepoSnapshotSta
 					if selected {
 						bg = p.accentSoft
 					}
-					btn := ui.ButtonBase(c.Key("pol-tgt-" + key)).
+					btn := ui.ButtonBase(c.Key("pol-tgt-"+key)).
 						Padding(7, 9).
 						Radius(7).
 						Background(bg).

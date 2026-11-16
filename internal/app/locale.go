@@ -1,3 +1,10 @@
+// @scope.file app.locale
+// @hash sha256:0ce2d55e5d85d9b3
+// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @ref default github.com/egoist/mygo/i18n@0.9.1
+// @ref default config.store sha256:7d43ead294b5aae9
+// Thread-safe active locale resolver mapping system/BCP-47 language tags to Mygopia's 7 locale catalogs.
+
 package app
 
 import (

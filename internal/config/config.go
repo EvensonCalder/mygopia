@@ -1,3 +1,8 @@
+// @scope.file config.store
+// @hash sha256:7d43ead294b5aae9
+// @implements spec.architecture sha256:de075e4493c51e2f
+// Persistent settings store, Kopia/rclone binary auto-detection, and repository profile discovery.
+
 package config
 
 import (

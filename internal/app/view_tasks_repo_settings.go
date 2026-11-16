@@ -1,3 +1,20 @@
+// @scope.file app.view_tasks_repo_settings
+// @hash sha256:cee766538e864b90
+// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @ref default github.com/egoist/mygo@0.9.1
+// @ref default github.com/egoist/mygo/ui@0.9.1
+// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default index.engine sha256:675b0ff7a488f692
+// @ref default kopia.cli sha256:f11fd6c9a799ad7e
+// @ref default kopia.client sha256:c1253141ff6ec455
+// @ref default kopia.manager sha256:b3cf54f5072da57d
+// @ref default kopia.types sha256:06dd81559d688041
+// @ref default app.core sha256:55bd88b4ebb6da29
+// @ref default app.locale sha256:0ce2d55e5d85d9b3
+// @ref default app.theme sha256:e59b9f47ce2180d6
+// @ref default app.view_connect sha256:a81f49bd79ce52f7
+// Tasks/logs inspector, repository settings (format, bandwidth, maintenance, notifications), and app preferences view.
+
 package app
 
 import (
@@ -13,6 +30,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"mygopia/internal/config"
+	"mygopia/internal/index"
 	"mygopia/internal/kopia"
 	"mygopia/locales"
 )
@@ -427,7 +445,7 @@ func (a *App) renderRepoView(c *ui.Context, prof config.RepoProfile, st kopia.Re
 							ui.Text(c, locales.NotificationProfiles()).FontSize(14).FontWeight(600)
 							for _, np := range st.NotificationProfiles {
 								profItem := np
-								ui.Row(c.Key("np-" + profItem.ProfileName)).AlignItems(ui.Center).Gap(10).Padding(6, 0).Children(func() {
+								ui.Row(c.Key("np-"+profItem.ProfileName)).AlignItems(ui.Center).Gap(10).Padding(6, 0).Children(func() {
 									ui.Text(c, profItem.ProfileName).FontWeight(600).Grow(1)
 									statusPill(c, profItem.MethodConfig.Type, p.text, p.subtleBg)
 									compactButton(c, locales.Delete()).TextColor(c.Theme().Danger).OnClick(func() {
@@ -555,6 +573,19 @@ func (a *App) disconnectRepoAction() {
 		}
 		a.indexer.RemoveRepo(repoID)
 		a.manager.RefreshRepo(ctx, repoID, false)
+		a.uiUpdate(func() {
+			if a.settings.ActiveRepoID == repoID {
+				a.snapshots = nil
+				a.selectedSnapIdx = -1
+				a.browserBreadcrumbs = nil
+				a.browserEntries = nil
+				a.diffSnapshots = nil
+				a.diffBaseSnapID = ""
+				a.diffTargetSnapID = ""
+				a.diffSummary = index.DiffSummary{}
+				a.searchDirty = true
+			}
+		})
 	}()
 }
 
@@ -599,8 +630,10 @@ func (a *App) saveMaintenanceAction() {
 	}
 	md := a.maintDraft
 	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
 		err := helper.SetMaintenance(
-			context.Background(),
+			ctx,
 			strings.TrimSpace(md.owner),
 			md.enableQuick,
 			time.Duration(md.quickHours*float64(time.Hour)),
@@ -611,7 +644,7 @@ func (a *App) saveMaintenanceAction() {
 			a.toast(err.Error(), true)
 			return
 		}
-		a.manager.RefreshMaintenanceAndStats(context.Background(), repoID)
+		a.manager.RefreshMaintenanceAndStats(ctx, repoID)
 		a.toast(locales.SettingsSaved(), false)
 	}()
 }
@@ -627,7 +660,9 @@ func (a *App) runMaintenanceAction(full bool) {
 	}
 	a.maintDraft.runningAction = true
 	go func() {
-		_, err := helper.RunMaintenance(context.Background(), full)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+		defer cancel()
+		_, err := helper.RunMaintenance(ctx, full)
 		a.uiUpdate(func() {
 			a.maintDraft.runningAction = false
 		})
@@ -635,7 +670,7 @@ func (a *App) runMaintenanceAction(full bool) {
 			a.toast(err.Error(), true)
 			return
 		}
-		a.manager.RefreshMaintenanceAndStats(context.Background(), repoID)
+		a.manager.RefreshMaintenanceAndStats(ctx, repoID)
 		a.toast(locales.MaintenanceCompleted(), false)
 	}()
 }
@@ -875,7 +910,7 @@ func (a *App) renderSettingsView(c *ui.Context) {
 								if selected {
 									ringCol = p.text
 								}
-								ui.Row(c.Key("accent-" + optCopy.Key)).
+								ui.Row(c.Key("accent-"+optCopy.Key)).
 									Width(24).
 									Height(24).
 									Radius(999).

@@ -1,3 +1,11 @@
+// @scope.file index.engine
+// @hash sha256:675b0ff7a488f692
+// @implements spec.dag_index sha256:70fe594b11b72420
+// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default kopia.client sha256:c1253141ff6ec455
+// @ref default kopia.types sha256:06dd81559d688041
+// Incremental content-addressed Kopia snapshot directory DAG indexer and atomic gob cache store.
+
 package index
 
 import (
@@ -364,7 +372,7 @@ func (e *Engine) IndexRepo(ctx context.Context, repoID, repoName string, cli *ko
 		var expandedCount int
 		for snapIdx, snap := range sg.snapshots {
 			if err := ctx.Err(); err != nil {
-				return err
+				return finishWithErr(err)
 			}
 			isLatestSnap := snapIdx == latestIdx
 			snapTime := snap.StartTime.Time
@@ -379,7 +387,7 @@ func (e *Engine) IndexRepo(ctx context.Context, repoID, repoName string, cli *ko
 			for len(stack) > 0 {
 				if expandedCount&0xfff == 0 {
 					if err := ctx.Err(); err != nil {
-						return err
+						return finishWithErr(err)
 					}
 				}
 				frame := stack[len(stack)-1]

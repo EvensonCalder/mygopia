@@ -1,0 +1,10 @@
+# Static docs, packaging scripts, generated locale catalogs, and test files
+docs/
+packaging/
+resources/
+locales/
+*_test.go
+README*.md
+THIRD_PARTY_NOTICES.md
+LICENSE
+mygo.json

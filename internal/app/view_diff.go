@@ -1,3 +1,22 @@
+// @scope.file app.view_diff
+// @hash sha256:0d80eba003c289aa
+// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @ref default github.com/egoist/mygo@0.9.1
+// @ref default github.com/egoist/mygo/ui@0.9.1
+// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default index.diff sha256:652a9afb2ec395c3
+// @ref default index.engine sha256:675b0ff7a488f692
+// @ref default index.local_diff sha256:bf7d7f007cf45755
+// @ref default kopia.client sha256:c1253141ff6ec455
+// @ref default kopia.manager sha256:b3cf54f5072da57d
+// @ref default kopia.types sha256:06dd81559d688041
+// @ref default app.core sha256:55bd88b4ebb6da29
+// @ref default app.icons sha256:a3df148b095e3dde
+// @ref default app.theme sha256:e59b9f47ce2180d6
+// @ref default app.view_policies sha256:1e415fd229eaa1fc
+// @ref default app.view_snapshots sha256:019743d5d1f2f9e1
+// Snapshot-to-snapshot and snapshot-to-local-folder comparison view with inline LCS line diff preview.
+
 package app
 
 import (

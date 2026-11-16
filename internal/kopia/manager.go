@@ -1,3 +1,13 @@
+// @scope.file kopia.manager
+// @hash sha256:b3cf54f5072da57d
+// @implements spec.kopia_engine sha256:44f993b3db7e5386
+// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default kopia.cli sha256:f11fd6c9a799ad7e
+// @ref default kopia.client sha256:c1253141ff6ec455
+// @ref default kopia.server sha256:283407c82903e997
+// @ref default kopia.types sha256:06dd81559d688041
+// Multi-repository Kopia server lifecycle coordinator and background state poller.
+
 package kopia
 
 import (
@@ -68,6 +78,12 @@ type managedRepo struct {
 	state RepoSnapshotState
 }
 
+func (mr *managedRepo) runnerRef() *ServerRunner {
+	mr.mu.RLock()
+	defer mr.mu.RUnlock()
+	return mr.runner
+}
+
 // Manager orchestrates local kopia servers and background state refreshes across one or more repositories.
 type Manager struct {
 	mu        sync.RWMutex
@@ -108,8 +124,9 @@ func (m *Manager) SetKopiaBinary(bin string) {
 	for _, mr := range m.repos {
 		mr.mu.Lock()
 		mr.cli.KopiaBin = bin
+		r := mr.runner
 		mr.mu.Unlock()
-		mr.runner.SetKopiaBinary(bin)
+		r.SetKopiaBinary(bin)
 	}
 	m.mu.Unlock()
 }
@@ -121,8 +138,9 @@ func (m *Manager) SetRcloneBinary(bin string) {
 	for _, mr := range m.repos {
 		mr.mu.Lock()
 		mr.cli.RcloneBin = bin
+		r := mr.runner
 		mr.mu.Unlock()
-		mr.runner.SetRcloneBinary(bin)
+		r.SetRcloneBinary(bin)
 	}
 	m.mu.Unlock()
 }
@@ -151,16 +169,22 @@ func (m *Manager) SyncProfiles(profiles []config.RepoProfile) {
 		keep[p.ID] = true
 		newOrder = append(newOrder, p.ID)
 		if existing, ok := m.repos[p.ID]; ok {
-			existing.mu.Lock()
+			var nextRunner *ServerRunner
+			existing.mu.RLock()
 			cfgChanged := existing.profile.ConfigFile != p.ConfigFile
+			existing.mu.RUnlock()
+			if cfgChanged {
+				nextRunner = newRunnerFor(existing, p.ConfigFile)
+			}
+			existing.mu.Lock()
 			existing.profile = p
 			existing.state.Profile = p
 			existing.cli.ConfigFile = p.ConfigFile
-			existing.mu.Unlock()
-			if cfgChanged {
+			if nextRunner != nil {
 				toStop = append(toStop, existing.runner)
-				existing.runner = newRunnerFor(existing, p.ConfigFile)
+				existing.runner = nextRunner
 			}
+			existing.mu.Unlock()
 			continue
 		}
 		mr := &managedRepo{
@@ -176,7 +200,7 @@ func (m *Manager) SyncProfiles(profiles []config.RepoProfile) {
 
 	for id, mr := range m.repos {
 		if !keep[id] {
-			toStop = append(toStop, mr.runner)
+			toStop = append(toStop, mr.runnerRef())
 			delete(m.repos, id)
 		}
 	}
@@ -206,7 +230,8 @@ func (m *Manager) EnsureStarted(ctx context.Context, repoID string) (*Client, er
 		return nil, err
 	}
 
-	if cli := mr.runner.Client(); cli != nil && mr.runner.Running() {
+	runner := mr.runnerRef()
+	if cli := runner.Client(); cli != nil && runner.Running() {
 		return cli, nil
 	}
 
@@ -214,15 +239,15 @@ func (m *Manager) EnsureStarted(ctx context.Context, repoID string) (*Client, er
 	mr.state.Starting = true
 	mr.state.LastError = ""
 	mr.mu.Unlock()
-	mr.runner.SetKopiaBinary(bin)
+	runner.SetKopiaBinary(bin)
 	m.notifyChange()
 
-	cli, err := mr.runner.Start(ctx)
+	cli, err := runner.Start(ctx)
 	mr.mu.Lock()
 	mr.state.Starting = false
-	mr.state.ServerRunning = mr.runner.Running()
-	mr.state.ServerAddress = mr.runner.Address()
-	mr.state.ServerLogs = mr.runner.Logs()
+	mr.state.ServerRunning = runner.Running()
+	mr.state.ServerAddress = runner.Address()
+	mr.state.ServerLogs = runner.Logs()
 	if err != nil {
 		mr.state.LastError = err.Error()
 	}
@@ -262,10 +287,11 @@ func (m *Manager) State(repoID string) (RepoSnapshotState, bool) {
 	}
 	mr.mu.RLock()
 	st := mr.state
+	runner := mr.runner
 	mr.mu.RUnlock()
-	st.ServerRunning = mr.runner.Running()
-	st.ServerAddress = mr.runner.Address()
-	st.ServerLogs = mr.runner.Logs()
+	st.ServerRunning = runner.Running()
+	st.ServerAddress = runner.Address()
+	st.ServerLogs = runner.Logs()
 	return st, true
 }
 
@@ -291,11 +317,12 @@ func (m *Manager) RefreshRepo(ctx context.Context, repoID string, includeHeavy b
 	if mr == nil {
 		return
 	}
-	cli := mr.runner.Client()
-	if cli == nil || !mr.runner.Running() {
+	runner := mr.runnerRef()
+	cli := runner.Client()
+	if cli == nil || !runner.Running() {
 		mr.mu.Lock()
 		mr.state.ServerRunning = false
-		mr.state.ServerLogs = mr.runner.Logs()
+		mr.state.ServerLogs = runner.Logs()
 		mr.mu.Unlock()
 		return
 	}
@@ -311,14 +338,14 @@ func (m *Manager) RefreshRepo(ctx context.Context, repoID string, includeHeavy b
 	if err != nil {
 		mr.mu.Lock()
 		mr.state.LastError = err.Error()
-		mr.state.ServerRunning = mr.runner.Running()
-		mr.state.ServerLogs = mr.runner.Logs()
+		mr.state.ServerRunning = runner.Running()
+		mr.state.ServerLogs = runner.Logs()
 		mr.mu.Unlock()
 		m.notifyChange()
 		return
 	}
 
-	tasks, _ := cli.ListTasks(rctx)
+	tasks, tasksErr := cli.ListTasks(rctx)
 
 	mr.mu.RLock()
 	needAlgos := mr.state.Algorithms == nil
@@ -330,13 +357,15 @@ func (m *Manager) RefreshRepo(ctx context.Context, repoID string, includeHeavy b
 	}
 
 	var (
-		sources  *SourcesResponse
-		policies []*PolicyListEntry
-		mounts   []*MountedSnapshot
-		throttle *ThrottleLimits
-		profiles []NotificationProfile
-		maint    *MaintenanceInfo
-		cstats   *ContentStats
+		sources     *SourcesResponse
+		policies    []*PolicyListEntry
+		mounts      []*MountedSnapshot
+		mountsErr   error
+		throttle    *ThrottleLimits
+		profiles    []NotificationProfile
+		profilesErr error
+		maint       *MaintenanceInfo
+		cstats      *ContentStats
 	)
 
 	if status.Connected {
@@ -347,7 +376,7 @@ func (m *Manager) RefreshRepo(ctx context.Context, repoID string, includeHeavy b
 			})
 		}
 		policies, _ = cli.ListPolicies(rctx)
-		mounts, _ = cli.ListMounts(rctx)
+		mounts, mountsErr = cli.ListMounts(rctx)
 		if includeHeavy {
 			mr.mu.RLock()
 			cliHelper := mr.cli
@@ -360,7 +389,7 @@ func (m *Manager) RefreshRepo(ctx context.Context, repoID string, includeHeavy b
 			}()
 			go func() {
 				defer heavyWG.Done()
-				profiles, _ = cli.ListNotificationProfiles(rctx)
+				profiles, profilesErr = cli.ListNotificationProfiles(rctx)
 			}()
 			go func() {
 				defer heavyWG.Done()
@@ -375,11 +404,13 @@ func (m *Manager) RefreshRepo(ctx context.Context, repoID string, includeHeavy b
 	}
 
 	mr.mu.Lock()
-	mr.state.ServerRunning = mr.runner.Running()
-	mr.state.ServerAddress = mr.runner.Address()
-	mr.state.ServerLogs = mr.runner.Logs()
+	mr.state.ServerRunning = runner.Running()
+	mr.state.ServerAddress = runner.Address()
+	mr.state.ServerLogs = runner.Logs()
 	mr.state.Status = status
-	mr.state.Tasks = tasks
+	if tasksErr == nil {
+		mr.state.Tasks = tasks
+	}
 	mr.state.LastError = ""
 	mr.state.LastUpdated = time.Now()
 	if algos != nil {
@@ -392,12 +423,16 @@ func (m *Manager) RefreshRepo(ctx context.Context, repoID string, includeHeavy b
 		if policies != nil {
 			mr.state.Policies = policies
 		}
-		mr.state.Mounts = mounts
+		if mountsErr == nil {
+			mr.state.Mounts = mounts
+		}
 		if includeHeavy {
 			if throttle != nil {
 				mr.state.Throttle = throttle
 			}
-			mr.state.NotificationProfiles = profiles
+			if profilesErr == nil {
+				mr.state.NotificationProfiles = profiles
+			}
 			if maint != nil {
 				mr.state.Maintenance = maint
 			}
@@ -455,10 +490,14 @@ func (m *Manager) StopRepo(repoID string) {
 	if mr == nil {
 		return
 	}
-	mr.runner.Stop()
+	mr.runnerRef().Stop()
 	mr.mu.Lock()
 	mr.state.ServerRunning = false
 	mr.state.Status = nil
+	mr.state.Sources = nil
+	mr.state.Policies = nil
+	mr.state.Mounts = nil
+	mr.state.Tasks = nil
 	mr.mu.Unlock()
 	m.notifyChange()
 }
@@ -471,7 +510,7 @@ func (m *Manager) Shutdown() {
 	m.mu.RLock()
 	runners := make([]*ServerRunner, 0, len(m.repos))
 	for _, mr := range m.repos {
-		runners = append(runners, mr.runner)
+		runners = append(runners, mr.runnerRef())
 	}
 	m.mu.RUnlock()
 
@@ -505,7 +544,7 @@ func (m *Manager) pollLoop() {
 
 			for _, id := range ids {
 				mr := m.getManaged(id)
-				if mr == nil || !mr.runner.Running() {
+				if mr == nil || !mr.runnerRef().Running() {
 					continue
 				}
 				mr.mu.RLock()

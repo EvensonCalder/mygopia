@@ -1,3 +1,10 @@
+// @scope.file index.diff
+// @hash sha256:652a9afb2ec395c3
+// @implements spec.dag_index sha256:70fe594b11b72420
+// @ref default index.engine sha256:675b0ff7a488f692
+// @ref default kopia.types sha256:06dd81559d688041
+// Content-addressed snapshot-to-snapshot tree diffing that skips identical `k...` directory OIDs in O(1).
+
 package index
 
 import (

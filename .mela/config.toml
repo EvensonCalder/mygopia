@@ -1,0 +1,115 @@
+# Meta-lang (.mela/config.toml)
+# Project configuration for code intent and dependency tracking
+
+[versions]
+annotation_spec = "0.1"
+data_spec = "0.1"
+cli = "0.1.3"
+
+[project]
+name = "mygopia"
+include = []
+exclude = [
+    ".git/**",
+    ".mela/**",
+    "target/**",
+    "node_modules/**",
+    "dist/**",
+    "build/**",
+    ".venv/**",
+    "__pycache__/**",
+]
+
+[language]
+mode = "auto"
+adapters = [
+    "rust",
+    "python",
+    "go",
+    "typescript",
+    "javascript",
+    "markdown",
+]
+
+[scope]
+require_fn_scope = "none"
+hierarchy_by_id = true
+nested_boundary = "exclusive"
+
+[annotation]
+tag_prefix = "@"
+allow_header_scope = true
+allow_default_ref = true
+
+[hash]
+algorithm = "sha256"
+hex_length = 16
+
+[validation]
+check_calls = true
+report_unresolved_calls = false
+check_external_deps = true
+require_implements_hash = false
+unreferenced_call_severity = "warning"
+external_dep_severity = "warning"
+ignore_calls = [
+    "new",
+    "default",
+    "clone",
+    "from",
+    "into",
+    "unwrap",
+    "expect",
+    "ok",
+    "err",
+    "some",
+    "len",
+    "is_empty",
+    "to_string",
+    "as_str",
+    "print",
+    "println",
+    "eprintln",
+    "format",
+    "vec",
+    "super",
+    "__init__",
+    "str",
+    "int",
+    "float",
+    "bool",
+    "list",
+    "dict",
+    "set",
+    "tuple",
+    "min",
+    "max",
+    "sum",
+    "sorted",
+    "enumerate",
+    "zip",
+    "range",
+    "isinstance",
+    "make",
+    "append",
+    "panic",
+]
+
+[intent]
+language = "en"
+require_non_empty = true
+required_sections = []
+max_lines = 0
+
+[graph]
+default_depth = 3
+detect_scc = true
+
+[prompt]
+file = ".mela/prompt.md"
+focus_areas = [
+    "Correctness invariants and edge-case assumptions",
+    "Architectural rationale and abstraction boundaries",
+    "Security, resource, and performance constraints",
+]
+extra_rules = []

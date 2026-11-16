@@ -1,3 +1,25 @@
+// @scope.file app.core
+// @hash sha256:55bd88b4ebb6da29
+// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @ref default github.com/egoist/mygo@0.9.1
+// @ref default github.com/egoist/mygo/ui@0.9.1
+// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default index.engine sha256:675b0ff7a488f692
+// @ref default kopia.client sha256:c1253141ff6ec455
+// @ref default kopia.manager sha256:b3cf54f5072da57d
+// @ref default kopia.types sha256:06dd81559d688041
+// @ref default app.icons sha256:a3df148b095e3dde
+// @ref default app.locale sha256:0ce2d55e5d85d9b3
+// @ref default app.theme sha256:e59b9f47ce2180d6
+// @ref default app.view_backups sha256:a64386c885d9dc4a
+// @ref default app.view_connect sha256:a81f49bd79ce52f7
+// @ref default app.view_diff sha256:0d80eba003c289aa
+// @ref default app.view_policies sha256:1e415fd229eaa1fc
+// @ref default app.view_search sha256:a19003c4c38dcc82
+// @ref default app.view_snapshots sha256:019743d5d1f2f9e1
+// @ref default app.view_tasks_repo_settings sha256:cee766538e864b90
+// Root immediate-mode desktop application controller, window/tray lifecycle, and two-phase repository refresh.
+
 package app
 
 import (
@@ -77,8 +99,8 @@ type App struct {
 	quitting    bool
 
 	// Pending toast emitted from async goroutines.
-	pendingToast     string
-	pendingToastErr  bool
+	pendingToast    string
+	pendingToastErr bool
 
 	// Shell & sidebar state
 	activeNav        string
@@ -136,22 +158,22 @@ type App struct {
 	browserSort         ui.SortOrder
 	browserLoading      bool
 	// Restore & Edit Snapshot state
-	editSnapModalOpen   bool
-	editSnapID          string
-	editSnapDesc        string
-	editSnapPinned      bool
-	restoreModalOpen    bool
-	restoreRepoID       string
-	restoreTargetOID    string
-	restoreDefaultName  string
-	restoreMode         int // 0 folder, 1 zip, 2 tar
-	restoreDestPath     string
-	restoreOverwriteF   bool
-	restoreOverwriteD   bool
-	restoreIncremental  bool
-	restoreDeleteExtra  bool
-	restoreIgnorePerm   bool
-	restoreSkipOwners   bool
+	editSnapModalOpen  bool
+	editSnapID         string
+	editSnapDesc       string
+	editSnapPinned     bool
+	restoreModalOpen   bool
+	restoreRepoID      string
+	restoreTargetOID   string
+	restoreDefaultName string
+	restoreMode        int // 0 folder, 1 zip, 2 tar
+	restoreDestPath    string
+	restoreOverwriteF  bool
+	restoreOverwriteD  bool
+	restoreIncremental bool
+	restoreDeleteExtra bool
+	restoreIgnorePerm  bool
+	restoreSkipOwners  bool
 
 	// KopiaLens-style Search state
 	focusSearchNextFrame bool
@@ -221,21 +243,21 @@ type App struct {
 	newPolicyFolderPath string
 
 	// Tasks & Logs state
-	tasksTab          int // 0 Tasks, 1 Server Logs
-	tasksTable        ui.ListState
-	selectedTaskRow   int
-	selectedTaskID    string
-	selectedTaskLogs  []kopia.TaskLogEntry
+	tasksTab         int // 0 Tasks, 1 Server Logs
+	tasksTable       ui.ListState
+	selectedTaskRow  int
+	selectedTaskID   string
+	selectedTaskLogs []kopia.TaskLogEntry
 
 	// Repository & Maintenance state
-	repoTab             int // 0 Overview & Stats, 1 Bandwidth, 2 Maintenance, 3 Notifications
-	repoDescDraft       string
-	repoDescLoadedID    string
-	throttleDraft       throttleFormDraft
-	throttleLoadedID    string
-	maintDraft          maintFormDraft
-	maintLoadedID       string
-	notifyForm          notifyProfileDraft
+	repoTab          int // 0 Overview & Stats, 1 Bandwidth, 2 Maintenance, 3 Notifications
+	repoDescDraft    string
+	repoDescLoadedID string
+	throttleDraft    throttleFormDraft
+	throttleLoadedID string
+	maintDraft       maintFormDraft
+	maintLoadedID    string
+	notifyForm       notifyProfileDraft
 
 	// Settings draft state
 	settingsThemeSeg  int
@@ -391,7 +413,7 @@ func (a *App) SeedSnapshotsAndEntries(sourceStr string, snaps []*kopia.Snapshot,
 }
 
 // AppVersion is the current application version of Mygopia.
-const AppVersion = "0.3.1"
+const AppVersion = "0.3.2"
 
 // RunDesktop launches the native desktop application window, menus, tray, and lifecycle hooks.
 func RunDesktop() error {
@@ -1694,7 +1716,7 @@ func (a *App) renderTopToolbar(c *ui.Context, prof config.RepoProfile, st kopia.
 		Background(p.canvas).
 		DragWindow().
 		Children(func() {
-			if ui.Button(c, "").Label(locales.ToggleSidebar()).Tooltip(toggleTip + modShortcutHint("B")).Padding(5, 7).Children(func() {
+			if ui.Button(c, "").Label(locales.ToggleSidebar()).Tooltip(toggleTip+modShortcutHint("B")).Padding(5, 7).Children(func() {
 				ui.Icon(c, iconSidebar).FontSize(15)
 			}).Clicked() {
 				a.toggleSidebarCollapsed()

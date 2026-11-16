@@ -1,3 +1,16 @@
+// @scope.file app.view_connect
+// @hash sha256:a81f49bd79ce52f7
+// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @ref default github.com/egoist/mygo@0.9.1
+// @ref default github.com/egoist/mygo/ui@0.9.1
+// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default kopia.client sha256:c1253141ff6ec455
+// @ref default kopia.manager sha256:b3cf54f5072da57d
+// @ref default kopia.types sha256:06dd81559d688041
+// @ref default app.core sha256:55bd88b4ebb6da29
+// @ref default app.theme sha256:e59b9f47ce2180d6
+// Repository connection and initialization wizard supporting 11 storage backends and profile management.
+
 package app
 
 import (

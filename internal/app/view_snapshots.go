@@ -1,3 +1,20 @@
+// @scope.file app.view_snapshots
+// @hash sha256:019743d5d1f2f9e1
+// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @ref default github.com/egoist/mygo@0.9.1
+// @ref default github.com/egoist/mygo/ui@0.9.1
+// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default kopia.client sha256:c1253141ff6ec455
+// @ref default kopia.manager sha256:b3cf54f5072da57d
+// @ref default kopia.types sha256:06dd81559d688041
+// @ref default app.core sha256:55bd88b4ebb6da29
+// @ref default app.icons sha256:a3df148b095e3dde
+// @ref default app.theme sha256:e59b9f47ce2180d6
+// @ref default app.view_connect sha256:a81f49bd79ce52f7
+// @ref default app.view_diff sha256:0d80eba003c289aa
+// @ref default app.view_policies sha256:1e415fd229eaa1fc
+// Snapshot timeline, directory tree browser, FUSE/WebDAV mount integration, and file restore modal.
+
 package app
 
 import (
@@ -45,19 +62,30 @@ func (a *App) openSnapshotByID(repoID string, src kopia.SourceInfo, snapID strin
 	}
 
 	targetRepo := a.settings.ActiveRepoID
+	targetSourceStr := a.snapSourceStr
 	includeIdentical := a.snapShowIdentical
+	a.snapLoadSeq++
+	seq := a.snapLoadSeq
 	a.snapLoading = true
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		cli, err := a.manager.ClientFor(ctx, targetRepo)
 		if err != nil {
-			a.uiUpdate(func() { a.snapLoading = false })
+			a.uiUpdate(func() {
+				if a.snapLoadSeq == seq {
+					a.snapLoading = false
+				}
+			})
 			return
 		}
 		resp, err := cli.ListSnapshots(ctx, src, includeIdentical)
 		if err != nil {
-			a.uiUpdate(func() { a.snapLoading = false })
+			a.uiUpdate(func() {
+				if a.snapLoadSeq == seq {
+					a.snapLoading = false
+				}
+			})
 			return
 		}
 		snaps := resp.Snapshots
@@ -65,6 +93,9 @@ func (a *App) openSnapshotByID(repoID string, src kopia.SourceInfo, snapID strin
 			return y.StartTime.Compare(x.StartTime.Time)
 		})
 		a.uiUpdate(func() {
+			if a.snapLoadSeq != seq || a.settings.ActiveRepoID != targetRepo || a.snapSourceStr != targetSourceStr {
+				return
+			}
 			a.snapLoading = false
 			a.snapshots = snaps
 			idx := 0
@@ -77,6 +108,10 @@ func (a *App) openSnapshotByID(repoID string, src kopia.SourceInfo, snapID strin
 			if len(snaps) > 0 {
 				a.selectedSnapIdx = idx
 				a.openSnapshotRoot(snaps[idx])
+			} else {
+				a.selectedSnapIdx = -1
+				a.browserBreadcrumbs = nil
+				a.browserEntries = nil
 			}
 		})
 	}()
@@ -453,7 +488,7 @@ func (a *App) renderSnapshotTimelinePane(c *ui.Context, st kopia.RepoSnapshotSta
 			selected := origIdx == a.selectedSnapIdx
 			fg, subFg, _ := tableRowColors(c, selected)
 
-			row := ui.Column(c.Key("snap-" + sn.ID)).Padding(8, 10).Gap(3).Children(func() {
+			row := ui.Column(c.Key("snap-"+sn.ID)).Padding(8, 10).Gap(3).Children(func() {
 				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
 					ui.Text(c, formatTimestamp(sn.StartTime.Time)).FontSize(12.5).FontWeight(600).FontFeatures("tnum").TextColor(fg).Grow(1).SingleLine()
 					if len(sn.Pins) > 0 {
