@@ -24,6 +24,9 @@ func TestLoadSaveAndNormalize(t *testing.T) {
 	if !cfg.ShowInMenuBar || !cfg.CloseToTray || !cfg.Notify || !cfg.AutoIndex {
 		t.Fatalf("expected boolean defaults true: %+v", cfg)
 	}
+	if cfg.CacheMaxMB != DefaultCacheMaxMB {
+		t.Fatalf("expected CacheMaxMB=%d, got %d", DefaultCacheMaxMB, cfg.CacheMaxMB)
+	}
 
 	// Upgrading from an older settings.json without "showInMenuBar" must default ShowInMenuBar to true,
 	// while explicitly saving ShowInMenuBar=false must persist false across reloads.
@@ -51,6 +54,7 @@ func TestLoadSaveAndNormalize(t *testing.T) {
 	cfg.UIScale = "huge"
 	cfg.OpenAtLogin = true
 	cfg.SidebarCustomWidth = 9999
+	cfg.CacheMaxMB = 999999
 	cfg.SidebarCollapsed = true
 	cfg.ActiveRepoID = "repo-main"
 	if err := Save(dir, cfg); err != nil {
@@ -78,6 +82,9 @@ func TestLoadSaveAndNormalize(t *testing.T) {
 	}
 	if reloaded.SidebarCustomWidth != SidebarMaxWidth {
 		t.Fatalf("expected clamped SidebarCustomWidth %v, got %v", SidebarMaxWidth, reloaded.SidebarCustomWidth)
+	}
+	if reloaded.CacheMaxMB != MaxCacheMaxMB {
+		t.Fatalf("expected clamped CacheMaxMB %d, got %d", MaxCacheMaxMB, reloaded.CacheMaxMB)
 	}
 	if !reloaded.SidebarCollapsed {
 		t.Fatalf("expected SidebarCollapsed true preserved after reload")
@@ -184,6 +191,25 @@ func TestInspectAndDiscoverProfiles(t *testing.T) {
 	_, authHint, authOK := InspectConfigFile(srvAuthCfg)
 	if !authOK || strings.Contains(authHint, "supersecret") || strings.Contains(authHint, "tok=") {
 		t.Fatalf("expected URL credentials/query stripped in InspectConfigFile, got hint=%q (ok=%v)", authHint, authOK)
+	}
+
+	// Real Kopia CLI `apiServer.url` schema + auto-generated `API Server: ...` description + self-healing fallback name
+	realSrvDir := t.TempDir()
+	realSrvCfg := filepath.Join(realSrvDir, "repository.config")
+	realSrvJSON := `{
+		"apiServer": { "url": "https://kopia.example.com:443" },
+		"description": "API Server: https://kopia.example.com:443"
+	}`
+	if err := os.WriteFile(realSrvCfg, []byte(realSrvJSON), 0o600); err != nil {
+		t.Fatalf("write realSrvCfg: %v", err)
+	}
+	rName, rHint, rOK := InspectConfigFile(realSrvCfg)
+	if !rOK || rName != "kopia.example.com" || rHint != "server: https://kopia.example.com:443" {
+		t.Fatalf("unexpected real apiServer.url InspectConfigFile: name=%q hint=%q ok=%v", rName, rHint, rOK)
+	}
+	healed := DiscoverProfiles([]RepoProfile{{ID: "repository", Name: "repository", ConfigFile: realSrvCfg}}, realSrvDir)
+	if len(healed) != 1 || healed[0].Name != "kopia.example.com" || healed[0].StorageHint != "server: https://kopia.example.com:443" {
+		t.Fatalf("expected DiscoverProfiles to self-heal fallback 'repository' name & hint, got %+v", healed)
 	}
 }
 

@@ -1422,3 +1422,67 @@ func TestMenuBarVisibilitySetting(t *testing.T) {
 		t.Fatalf("expected persisted ShowInMenuBar=true after re-checking, got false")
 	}
 }
+
+func TestUpfrontSlowOperationEstimatorSuppressesFastToolbarFlash(t *testing.T) {
+	a := newRichTestApp(t, config.DefaultSettings(), []string{"en"})
+
+	localProf := config.RepoProfile{ID: "r-local", Name: "Local SSD", StorageHint: "filesystem: /Users/test/repo"}
+	localState := kopia.RepoSnapshotState{
+		Profile: localProf,
+		Status:  &kopia.StatusResponse{Connected: true, Storage: "filesystem"},
+	}
+
+	remoteProf := config.RepoProfile{ID: "r-s3", Name: "Cloud S3", StorageHint: "s3: prod-backups"}
+	remoteState := kopia.RepoSnapshotState{
+		Profile: remoteProf,
+		Status:  &kopia.StatusResponse{Connected: true, Storage: "s3"},
+	}
+
+	if isRemoteRepository(localProf, localState) {
+		t.Fatalf("expected local filesystem repository to be classified as non-remote")
+	}
+	if !isRemoteRepository(remoteProf, remoteState) {
+		t.Fatalf("expected S3 repository to be classified as remote")
+	}
+
+	smallSnapA := &kopia.Snapshot{
+		ID:      "s1",
+		RootID:  "kdir-s1",
+		Summary: &kopia.DirectorySummary{TotalFileCount: 120, TotalDirCount: 18},
+	}
+	smallSnapB := &kopia.Snapshot{
+		ID:      "s2",
+		RootID:  "kdir-s2",
+		Summary: &kopia.DirectorySummary{TotalFileCount: 130, TotalDirCount: 19},
+	}
+	largeSnap := &kopia.Snapshot{
+		ID:      "s-large",
+		RootID:  "kdir-large",
+		Summary: &kopia.DirectorySummary{TotalFileCount: 65000, TotalDirCount: 1200},
+	}
+
+	// Small local diff (< 0.3s estimated upfront) must NOT trigger top-right toolbar spinner
+	if a.estimateSnapDiffSlow(localProf, localState, localProf.ID, smallSnapA, smallSnapB) {
+		t.Fatalf("expected small local snapshot diff to estimate < 0.3s (fast)")
+	}
+	a.diffLoading = true
+	a.diffCalcSlow = false
+	if spinning, _ := a.activeRefreshStatus(localProf, localState); spinning {
+		t.Fatalf("expected fast (< 0.3s) diff not to spin top-right toolbar")
+	}
+
+	// Uncached remote S3 diff MUST trigger top-right toolbar spinner upfront (>= 0.3s)
+	if !a.estimateSnapDiffSlow(remoteProf, remoteState, remoteProf.ID, smallSnapA, smallSnapB) {
+		t.Fatalf("expected uncached remote S3 snapshot diff to estimate >= 0.3s (slow)")
+	}
+	// Large local tree diff MUST also trigger top-right toolbar spinner upfront (>= 0.3s)
+	if !a.estimateSnapDiffSlow(localProf, localState, localProf.ID, smallSnapA, largeSnap) {
+		t.Fatalf("expected large local snapshot diff to estimate >= 0.3s (slow)")
+	}
+	a.diffCalcSlow = true
+	if spinning, label := a.activeRefreshStatus(localProf, localState); !spinning || label == "" {
+		t.Fatalf("expected slow (>= 0.3s) diff to spin top-right toolbar, got spinning=%v label=%q", spinning, label)
+	}
+	a.diffLoading = false
+	a.diffCalcSlow = false
+}

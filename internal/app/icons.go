@@ -1,6 +1,6 @@
 // @scope.file app.icons
 // @hash sha256:a3df148b095e3dde
-// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @implements spec.desktop_ui sha256:67347d72ce79be0a
 // @ref default github.com/egoist/mygo/ui@0.9.1
 // Pre-parsed 24x24 Lucide SVG vector icons for sidebar navigation and snapshot browser entries.
 

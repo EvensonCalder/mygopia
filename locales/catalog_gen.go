@@ -5266,3 +5266,107 @@ func RefreshRSyncsRepositoryIncrementalIndexClick() string {
 func (msgs Messages) RefreshRSyncsRepositoryIncrementalIndexClick() string {
 	return Catalog.Format(msgs.locale, "refreshRSyncsRepositoryIncrementalIndexClick", nil)
 }
+
+// IndexAndCache says "Search Index & Cache"
+// in the language the app shows.
+func IndexAndCache() string { return In(i18n.Locale()).IndexAndCache() }
+
+// IndexAndCache says "Search Index & Cache"
+// in the language of msgs.
+func (msgs Messages) IndexAndCache() string {
+	return Catalog.Format(msgs.locale, "indexAndCache", nil)
+}
+
+// MaxCacheSize says "Max Local Cache Size"
+// in the language the app shows.
+func MaxCacheSize() string { return In(i18n.Locale()).MaxCacheSize() }
+
+// MaxCacheSize says "Max Local Cache Size"
+// in the language of msgs.
+func (msgs Messages) MaxCacheSize() string {
+	return Catalog.Format(msgs.locale, "maxCacheSize", nil)
+}
+
+// CacheUsageOfMax says "Current disk usage: {used} / {max}"
+// in the language the app shows.
+func CacheUsageOfMax(used string, max string) string {
+	return In(i18n.Locale()).CacheUsageOfMax(used, max)
+}
+
+// CacheUsageOfMax says "Current disk usage: {used} / {max}"
+// in the language of msgs.
+func (msgs Messages) CacheUsageOfMax(used string, max string) string {
+	return Catalog.Format(msgs.locale, "cacheUsageOfMax", map[string]any{"used": used, "max": max})
+}
+
+// ClearCache says "Clear Cache"
+// in the language the app shows.
+func ClearCache() string { return In(i18n.Locale()).ClearCache() }
+
+// ClearCache says "Clear Cache"
+// in the language of msgs.
+func (msgs Messages) ClearCache() string {
+	return Catalog.Format(msgs.locale, "clearCache", nil)
+}
+
+// CacheCleared says "Local cache cleared"
+// in the language the app shows.
+func CacheCleared() string { return In(i18n.Locale()).CacheCleared() }
+
+// CacheCleared says "Local cache cleared"
+// in the language of msgs.
+func (msgs Messages) CacheCleared() string {
+	return Catalog.Format(msgs.locale, "cacheCleared", nil)
+}
+
+// ComparingItemsFound says "Comparing ({count, number, ::group-off} changes)…"
+// in the language the app shows.
+func ComparingItemsFound(count int) string { return In(i18n.Locale()).ComparingItemsFound(count) }
+
+// ComparingItemsFound says "Comparing ({count, number, ::group-off} changes)…"
+// in the language of msgs.
+func (msgs Messages) ComparingItemsFound(count int) string {
+	return Catalog.Format(msgs.locale, "comparingItemsFound", map[string]any{"count": count})
+}
+
+// ConnectingToRepository says "Connecting to repository…"
+// in the language the app shows.
+func ConnectingToRepository() string { return In(i18n.Locale()).ConnectingToRepository() }
+
+// ConnectingToRepository says "Connecting to repository…"
+// in the language of msgs.
+func (msgs Messages) ConnectingToRepository() string {
+	return Catalog.Format(msgs.locale, "connectingToRepository", nil)
+}
+
+// EstablishingStorageConnectionHint says "Starting local Kopia engine and connecting to storage backend. You can still use Search or view Logs while waiting."
+// in the language the app shows.
+func EstablishingStorageConnectionHint() string {
+	return In(i18n.Locale()).EstablishingStorageConnectionHint()
+}
+
+// EstablishingStorageConnectionHint says "Starting local Kopia engine and connecting to storage backend. You can still use Search or view Logs while waiting."
+// in the language of msgs.
+func (msgs Messages) EstablishingStorageConnectionHint() string {
+	return Catalog.Format(msgs.locale, "establishingStorageConnectionHint", nil)
+}
+
+// RepositoryConnectionTimedOut says "Storage backend took too long to respond. Check your network connection or credentials and retry."
+// in the language the app shows.
+func RepositoryConnectionTimedOut() string { return In(i18n.Locale()).RepositoryConnectionTimedOut() }
+
+// RepositoryConnectionTimedOut says "Storage backend took too long to respond. Check your network connection or credentials and retry."
+// in the language of msgs.
+func (msgs Messages) RepositoryConnectionTimedOut() string {
+	return Catalog.Format(msgs.locale, "repositoryConnectionTimedOut", nil)
+}
+
+// RetryConnection says "Retry Connection"
+// in the language the app shows.
+func RetryConnection() string { return In(i18n.Locale()).RetryConnection() }
+
+// RetryConnection says "Retry Connection"
+// in the language of msgs.
+func (msgs Messages) RetryConnection() string {
+	return Catalog.Format(msgs.locale, "retryConnection", nil)
+}

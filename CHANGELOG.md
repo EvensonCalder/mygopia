@@ -2,6 +2,25 @@
 
 All notable changes to **Mygopia** are documented in this file.
 
+## [Unreleased]
+
+### Added
+- **Bounded `bbolt` + S2 Cache Engine & Configurable Disk Cap (`internal/index/store.go`, `internal/config/config.go`, `internal/app/view_tasks_repo_settings.go`)**:
+  - Replaced monolithic `gob` directory-map deserialization with a pure-Go `bbolt` B+Tree + `klauspost/compress/s2` block-compressed delta-varint store (`~6.7 µs` cold directory decode, `~31 ns` L1 LRU hit) and automatic `80ms` idle unmap.
+  - Moved per-file `VersionRecord` histories off the Go heap into on-demand `bbolt` point reads and persisted search catalogs for `< 5ms` cold-start recovery (`EnsureCatalogLoaded`).
+  - Added user-configurable maximum disk cache size defaulting to `1 GB` (`128 MB` – `8 GB` in Settings -> Index & Cache) with newest-first rank eviction, `bbolt.Compact` physical space reclamation, live cache usage display, and one-click cache clear.
+- **Real-Time Incremental Streaming & Incomplete-Load Visual Feedback (`internal/index/diff.go`, `internal/index/local_diff.go`, `internal/app/view_diff.go`, `internal/app/view_search.go`, `internal/app/view_snapshots.go`)**:
+  - Added progressive BFS streaming (`CompareRootsStream` and 8-worker concurrent `CompareRootWithLocalDirStream`) and source-by-source search catalog streaming.
+  - Added upfront storage-locality & directory-scale cost estimation (`300ms` threshold) so fast `< 0.3s` operations update silently without toolbar spinner flashes, while any not-yet-complete file/folder rows render filenames in muted gray until 100% loaded.
+- **Configured Repository Connecting Transition View (`internal/app/view_connect.go`, `internal/kopia/manager.go`)**:
+  - Added a dedicated "Connecting to repository…" transition card (with retry & reconfigure actions and serialized `RefreshRepo` polling) so configured remote/server repositories no longer flash `Disconnected` or raw loopback timeout errors during startup handshakes.
+
+### Fixed
+- **Duplicate RPCs & Redundant Diff Executions (`internal/app/cache.go`, `internal/app/view_diff.go`, `internal/app/view_snapshots.go`)**: Coalesced concurrent `ListSnapshots`, `GetDirectory`, and `ResolvePolicy` calls via `singleflight`, eliminated double `CompareRoots` execution on Diff source load, and added 60fps table filter/sort memoization.
+- **Kopia Repository Server `apiServer.url` Discovery & macOS Traffic-Light Tooltip Placement (`internal/config/config.go`, `internal/app/theme.go`, `internal/app/app.go`)**:
+  - Fixed `InspectConfigFile` to parse Kopia's `apiServer.url` field and self-heal fallback `"repository"` profile names.
+  - Directed top-bar and sidebar header tooltips downward (`tooltipBelow`) and collapsed rail tooltips rightward (`tooltipRight`) so hover tooltips never overlap macOS window traffic lights.
+
 ## [0.3.2] - 2026-11-16
 
 ### Added

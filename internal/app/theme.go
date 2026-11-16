@@ -1,8 +1,8 @@
 // @scope.file app.theme
-// @hash sha256:e59b9f47ce2180d6
-// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @hash sha256:5167155d01845017
+// @implements spec.desktop_ui sha256:67347d72ce79be0a
 // @ref default github.com/egoist/mygo/ui@0.9.1
-// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default config.store sha256:b49642aa028d360a
 // @ref default kopia.types sha256:06dd81559d688041
 // Light/Dark color palettes, DPI-adaptive zoom calculation, and shared immediate-mode UI card/pill helpers.
 
@@ -318,6 +318,46 @@ func compactButton(c *ui.Context, label string) ui.Element {
 // compactPrimaryButton renders an accented compact button with balanced CJK/Latin breathing room.
 func compactPrimaryButton(c *ui.Context, label string) ui.Element {
 	return ui.PrimaryButton(c, label).Padding(5, 12).Radius(6).FontSize(11.5)
+}
+
+func renderDirectionalTooltip(c *ui.Context, anchor ui.Element, text string, at, self ui.Anchor, mt, ml float32) ui.Element {
+	if text == "" {
+		return anchor
+	}
+	anchor.Description(text)
+	t := c.Theme()
+	fill, fg := t.Inverse, t.InverseText
+	if fill == ui.Transparent {
+		fill = t.Text
+	}
+	if fg == ui.Transparent {
+		fg = t.Background
+	}
+	ui.TooltipBase(c, anchor, func(tip ui.Element) {
+		tip.MaxWidth(320).
+			Padding(5, 8).
+			Radius(5).
+			Background(fill).
+			TextColor(fg).
+			FontSize(t.FontSize-1).
+			Shadow(0, 2, 8, 0, ui.RGBA(0, 0, 0, 0.2)).
+			Children(func() {
+				ui.Text(c, text)
+			}).
+			AttachTo(anchor, at, self).
+			Margin(mt, 0, 0, ml)
+	})
+	return anchor
+}
+
+// tooltipBelow attaches a hover/focus tooltip below anchor so top-bar / sidebar-header controls never overlap macOS traffic lights.
+func tooltipBelow(c *ui.Context, anchor ui.Element, text string) ui.Element {
+	return renderDirectionalTooltip(c, anchor, text, ui.AnchorBottom, ui.AnchorTop, 6, 0)
+}
+
+// tooltipRight attaches a hover/focus tooltip to the right of collapsed rail icons so tooltips never overlap traffic lights or neighboring icons.
+func tooltipRight(c *ui.Context, anchor ui.Element, text string) ui.Element {
+	return renderDirectionalTooltip(c, anchor, text, ui.AnchorEnd, ui.AnchorStart, 0, 6)
 }
 
 // sourceSelectOptions builds parallel canonical keys (Source.String()) and clean human-readable

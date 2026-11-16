@@ -1,14 +1,15 @@
 // @scope.file app.view_connect
-// @hash sha256:a81f49bd79ce52f7
-// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @hash sha256:90b187964bdf27c9
+// @implements spec.desktop_ui sha256:67347d72ce79be0a
 // @ref default github.com/egoist/mygo@0.9.1
 // @ref default github.com/egoist/mygo/ui@0.9.1
-// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default config.store sha256:b49642aa028d360a
 // @ref default kopia.client sha256:c1253141ff6ec455
-// @ref default kopia.manager sha256:b3cf54f5072da57d
+// @ref default kopia.manager sha256:332d271a00525eae
 // @ref default kopia.types sha256:06dd81559d688041
-// @ref default app.core sha256:55bd88b4ebb6da29
-// @ref default app.theme sha256:e59b9f47ce2180d6
+// @ref default app.core sha256:35c4a3caee9a794f
+// @ref default app.icons sha256:a3df148b095e3dde
+// @ref default app.theme sha256:5167155d01845017
 // Repository connection and initialization wizard supporting 11 storage backends and profile management.
 
 package app
@@ -181,13 +182,92 @@ func (a *App) openConnectWizard(asNewRepoProfile bool) {
 	a.connectModalOpen = true
 }
 
+func formatRepoConnectError(st kopia.RepoSnapshotState) string {
+	raw := strings.TrimSpace(st.LastError)
+	if raw != "" {
+		lower := strings.ToLower(raw)
+		if strings.Contains(raw, "127.0.0.1:") &&
+			(strings.Contains(lower, "context deadline exceeded") || strings.Contains(lower, "client.timeout")) {
+			return locales.RepositoryConnectionTimedOut()
+		}
+		return raw
+	}
+	for i := len(st.Tasks) - 1; i >= 0; i-- {
+		if msg := strings.TrimSpace(st.Tasks[i].ErrorMessage); msg != "" {
+			return msg
+		}
+	}
+	return locales.RepositoryConnectionTimedOut()
+}
+
+func (a *App) renderRepoConnecting(c *ui.Context, prof config.RepoProfile, st kopia.RepoSnapshotState) {
+	p := paletteOf(c)
+	activelyConnecting := a.isRepoActivelyConnecting(prof, st)
+	subline := strings.TrimSpace(prof.StorageHint)
+	if subline == "" {
+		subline = prof.ConfigFile
+	}
+
+	ui.Column(c).Fill().Padding(28).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+		card(c, func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(12).Children(func() {
+				if activelyConnecting {
+					ic := ui.Icon(c.Key("repo-connecting-spin"), iconRefresh).FontSize(20).TextColor(c.Theme().Accent)
+					deg := ic.Loop("repo-conn-spin", 900*time.Millisecond, ui.Linear) * 360
+					ic.Transform(ui.Rotation(deg))
+				} else {
+					ui.Icon(c, iconRepo).FontSize(20).TextColor(c.Theme().Warning)
+				}
+				ui.Column(c).Grow(1).Gap(3).Children(func() {
+					title := locales.ConnectingToRepository()
+					if !activelyConnecting {
+						title = prof.Name
+					}
+					ui.Text(c, title).FontSize(15.5).FontWeight(600)
+					ui.Text(c, subline).FontSize(12).TextColor(p.muted).SingleLine()
+				})
+			})
+
+			if activelyConnecting {
+				ui.Text(c, locales.EstablishingStorageConnectionHint()).FontSize(12.5).TextColor(p.muted)
+				ui.Row(c).Justify(ui.End).Padding(4, 0, 0, 0).Children(func() {
+					if compactButton(c, locales.ConnectOrCreate()).Clicked() {
+						a.forceOnboardingRepoID = prof.ID
+					}
+				})
+				return
+			}
+
+			errMsg := formatRepoConnectError(st)
+			if errMsg != "" {
+				ui.Row(c).Padding(10, 14).Radius(8).Background(p.dangerSoft).Border(1, c.Theme().Danger).Children(func() {
+					ui.Text(c, errMsg).TextColor(c.Theme().Danger).FontSize(12.5)
+				})
+			}
+
+			ui.Row(c).Gap(8).Justify(ui.End).Padding(4, 0, 0, 0).Children(func() {
+				if ui.Button(c, locales.ConnectOrCreate()).Clicked() {
+					a.forceOnboardingRepoID = prof.ID
+				}
+				if ui.PrimaryButton(c, locales.RetryConnection()).Clicked() {
+					if a.manager != nil {
+						a.manager.StopRepo(prof.ID)
+					}
+					a.activateRepo(prof.ID)
+				}
+			})
+		}).Width(520).Gap(14)
+	})
+}
+
 func (a *App) renderRepoOnboarding(c *ui.Context, prof config.RepoProfile, st kopia.RepoSnapshotState) {
 	p := paletteOf(c)
 	ui.Scroll(c.Key("onboarding-scroll")).Fill().Padding(28).Children(func() {
 		ui.Column(c).MaxWidth(640).Margin(0, 0).Gap(16).Children(func() {
-			if st.LastError != "" {
+			if st.LastError != "" && a.forceOnboardingRepoID != prof.ID {
+				errMsg := formatRepoConnectError(st)
 				ui.Row(c).Padding(10, 14).Radius(8).Background(p.dangerSoft).Border(1, c.Theme().Danger).Children(func() {
-					ui.Text(c, st.LastError).TextColor(c.Theme().Danger).FontSize(12.5)
+					ui.Text(c, errMsg).TextColor(c.Theme().Danger).FontSize(12.5)
 				})
 			}
 			card(c, func() {

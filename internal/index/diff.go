@@ -1,7 +1,7 @@
 // @scope.file index.diff
-// @hash sha256:652a9afb2ec395c3
-// @implements spec.dag_index sha256:70fe594b11b72420
-// @ref default index.engine sha256:675b0ff7a488f692
+// @hash sha256:bffd1e6ac38d6e3a
+// @implements spec.dag_index sha256:c155f3ed2269ad94
+// @ref default index.engine sha256:1aea8ec7725d31ae
 // @ref default kopia.types sha256:06dd81559d688041
 // Content-addressed snapshot-to-snapshot tree diffing that skips identical `k...` directory OIDs in O(1).
 
@@ -71,40 +71,59 @@ func (e *Engine) CompareRoots(
 	cli *kopia.Client,
 	rootA, rootB string,
 ) (DiffSummary, error) {
+	return e.CompareRootsStream(ctx, repoID, cli, rootA, rootB, nil)
+}
+
+// CompareRootsStream computes the Merkle tree diff between rootA and rootB using point lookups in L1/bbolt,
+// emitting throttled incremental DiffSummary snapshots via onProgress while deeper levels are still loading.
+func (e *Engine) CompareRootsStream(
+	ctx context.Context,
+	repoID string,
+	cli *kopia.Client,
+	rootA, rootB string,
+	onProgress func(DiffSummary),
+) (DiffSummary, error) {
 	if rootA == "" || rootB == "" {
 		return DiffSummary{}, fmt.Errorf("snapshot root object ID is empty")
 	}
 	if rootA == rootB {
 		return DiffSummary{}, nil
 	}
-	if cli == nil {
-		return DiffSummary{}, fmt.Errorf("kopia client unavailable")
+	if cached, ok := e.LookupDiff(repoID, rootA, rootB); ok {
+		return cached, nil
 	}
 
-	dirCache := e.loadDiskCache(repoID)
+	dirCache := make(map[string][]CachedEntry, 64)
 	newlyFetched := make(map[string][]CachedEntry)
-	var cacheMu sync.RWMutex
+	var cacheMu sync.Mutex
 
 	ensureDirsLoaded := func(oids []string) error {
 		uniq := uniqueStrings(oids)
-		var missing []string
-		cacheMu.RLock()
+		var uncached []string
 		for _, oid := range uniq {
 			if _, ok := dirCache[oid]; !ok {
-				missing = append(missing, oid)
+				uncached = append(uncached, oid)
 			}
 		}
-		cacheMu.RUnlock()
+		if len(uncached) == 0 {
+			return nil
+		}
+		found, missing := e.getDirsBatch(repoID, uncached)
+		for oid, entries := range found {
+			dirCache[oid] = entries
+		}
 		if len(missing) == 0 {
 			return nil
 		}
-		err := fetchDirectoriesConcurrent(ctx, cli, missing, 8, func(oid string, entries []CachedEntry) {
+		if cli == nil {
+			return fmt.Errorf("kopia client unavailable")
+		}
+		return fetchDirectoriesConcurrent(ctx, cli, missing, 8, func(oid string, entries []CachedEntry) {
 			cacheMu.Lock()
 			dirCache[oid] = entries
 			newlyFetched[oid] = entries
 			cacheMu.Unlock()
 		})
-		return err
 	}
 
 	type pairTask struct {
@@ -116,6 +135,8 @@ func (e *Engine) CompareRoots(
 
 	frontier := []pairTask{{prefix: "", oidA: rootA, oidB: rootB, depth: 0}}
 	var entries []DiffEntry
+	lastEmit := time.Now()
+	lastEmittedLen := 0
 
 	for len(frontier) > 0 && len(entries) < maxExpandedEntries {
 		if err := ctx.Err(); err != nil {
@@ -222,13 +243,21 @@ func (e *Engine) CompareRoots(
 			}
 		}
 		frontier = nextFrontier
+
+		if onProgress != nil && len(frontier) > 0 && len(entries) > lastEmittedLen && time.Since(lastEmit) >= 90*time.Millisecond {
+			onProgress(summarizeDiffEntries(slices.Clone(entries)))
+			lastEmit = time.Now()
+			lastEmittedLen = len(entries)
+		}
 	}
 
 	if len(newlyFetched) > 0 {
 		_ = e.mergeDiskCacheEntries(repoID, newlyFetched)
 	}
 
-	return summarizeDiffEntries(entries), nil
+	summary := summarizeDiffEntries(entries)
+	e.StoreDiff(repoID, rootA, rootB, summary)
+	return summary, nil
 }
 
 // CompareSeededSnapshots computes a DiffSummary from in-memory seeded SearchItems (for headless tests & offline preview).
@@ -353,9 +382,42 @@ func makeDiffEntry(relPath, name string, isDir bool, kind DiffKind, entA, entB C
 	}
 }
 
+// CompareFoldPath performs a zero-allocation ASCII-fast case-insensitive string comparison.
+func CompareFoldPath(a, b string) int {
+	minLen := min(len(a), len(b))
+	for i := range minLen {
+		ca, cb := a[i], b[i]
+		if ca == cb {
+			continue
+		}
+		if ca >= 0x80 || cb >= 0x80 {
+			return strings.Compare(strings.ToLower(a[i:]), strings.ToLower(b[i:]))
+		}
+		if ca >= 'A' && ca <= 'Z' {
+			ca += 'a' - 'A'
+		}
+		if cb >= 'A' && cb <= 'Z' {
+			cb += 'a' - 'A'
+		}
+		if ca != cb {
+			if ca < cb {
+				return -1
+			}
+			return 1
+		}
+	}
+	if len(a) < len(b) {
+		return -1
+	}
+	if len(a) > len(b) {
+		return 1
+	}
+	return 0
+}
+
 func summarizeDiffEntries(entries []DiffEntry) DiffSummary {
 	slices.SortFunc(entries, func(a, b DiffEntry) int {
-		return strings.Compare(strings.ToLower(a.Path), strings.ToLower(b.Path))
+		return CompareFoldPath(a.Path, b.Path)
 	})
 	var sum DiffSummary
 	sum.Entries = entries

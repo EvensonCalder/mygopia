@@ -1,23 +1,25 @@
 // @scope.file app.core
-// @hash sha256:55bd88b4ebb6da29
-// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @hash sha256:35c4a3caee9a794f
+// @implements spec.desktop_ui sha256:67347d72ce79be0a
 // @ref default github.com/egoist/mygo@0.9.1
 // @ref default github.com/egoist/mygo/ui@0.9.1
-// @ref default config.store sha256:7d43ead294b5aae9
-// @ref default index.engine sha256:675b0ff7a488f692
+// @ref default golang.org/x/sync@0.25.0
+// @ref default config.store sha256:b49642aa028d360a
+// @ref default index.engine sha256:1aea8ec7725d31ae
 // @ref default kopia.client sha256:c1253141ff6ec455
-// @ref default kopia.manager sha256:b3cf54f5072da57d
+// @ref default kopia.manager sha256:332d271a00525eae
 // @ref default kopia.types sha256:06dd81559d688041
+// @ref default app.cache sha256:6e5e1b91e6872ef4
 // @ref default app.icons sha256:a3df148b095e3dde
 // @ref default app.locale sha256:0ce2d55e5d85d9b3
-// @ref default app.theme sha256:e59b9f47ce2180d6
-// @ref default app.view_backups sha256:a64386c885d9dc4a
-// @ref default app.view_connect sha256:a81f49bd79ce52f7
-// @ref default app.view_diff sha256:0d80eba003c289aa
-// @ref default app.view_policies sha256:1e415fd229eaa1fc
-// @ref default app.view_search sha256:a19003c4c38dcc82
-// @ref default app.view_snapshots sha256:019743d5d1f2f9e1
-// @ref default app.view_tasks_repo_settings sha256:cee766538e864b90
+// @ref default app.theme sha256:5167155d01845017
+// @ref default app.view_backups sha256:86061e8786a53e61
+// @ref default app.view_connect sha256:90b187964bdf27c9
+// @ref default app.view_diff sha256:7a1c425c5f83abf0
+// @ref default app.view_policies sha256:144a290ee4d6d2f2
+// @ref default app.view_search sha256:e9ad75c5374d5129
+// @ref default app.view_snapshots sha256:d032290fc4d5b704
+// @ref default app.view_tasks_repo_settings sha256:4c6b60617687d978
 // Root immediate-mode desktop application controller, window/tray lifecycle, and two-phase repository refresh.
 
 package app
@@ -41,6 +43,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"golang.org/x/sync/singleflight"
 
 	"mygopia/internal/config"
 	"mygopia/internal/index"
@@ -107,18 +110,26 @@ type App struct {
 	sidebarLiveWidth float32
 	lastSidebarWidth float32
 	refreshing       bool
+	refreshSlow      bool
 	refreshPhase     string
 	refreshSeq       uint64
 	refreshCancel    context.CancelFunc
 	snapLoadSeq      uint64
+	snapLoadSlow     bool
 	browserLoadSeq   uint64
+	browserLoadSlow  bool
 	diffLoadSeq      uint64
+	diffSnapLoading  bool
+	diffSnapSlow     bool
 	diffCalcSeq      uint64
+	diffCalcSlow     bool
 
 	// Add Repository / Connect wizard state
-	connectModalOpen bool
-	connectAsNewRepo bool
-	connectForm      connectFormState
+	connectModalOpen      bool
+	connectAsNewRepo      bool
+	forceOnboardingRepoID string
+	repoActivating        bool
+	connectForm           connectFormState
 
 	// Backups view state
 	addSourceModalOpen bool
@@ -205,6 +216,8 @@ type App struct {
 	searchVerFilter      string
 	searchVerLimit       int
 	searchVerItemPath    string
+	searchVerHistKey     string
+	searchVerHistSlice   []index.VersionRecord
 
 	// Snapshot Diff state
 	diffSourceStr    string
@@ -260,13 +273,32 @@ type App struct {
 	notifyForm       notifyProfileDraft
 
 	// Settings draft state
-	settingsThemeSeg  int
-	settingsLangSeg   int
-	settingsScaleSeg  int
-	settingsKopiaBin  string
-	settingsRcloneBin string
-	settingsCfgDir    string
-	settingsLoaded    bool
+	settingsThemeSeg       int
+	settingsLangSeg        int
+	settingsScaleSeg       int
+	settingsCacheMaxIdx    int
+	settingsCacheUsedBytes int64
+	settingsCacheUsedAt    time.Time
+	settingsKopiaBin       string
+	settingsRcloneBin      string
+	settingsCfgDir         string
+	settingsLoaded         bool
+
+	// Coalesced request singleflight, bounded snapshot/policy hot caches & frame memoization
+	sfGroup            singleflight.Group
+	cacheMu            sync.RWMutex
+	snapListCache      map[snapCacheKey][]*kopia.Snapshot
+	policyCache        map[string]*kopia.Policy
+	snapshotsRev       uint64
+	browserEntriesRev  uint64
+	diffSummaryRev     uint64
+	diffActiveCalcKey  string
+	snapMemoKey        snapTimelineMemoKey
+	snapMemoIdx        []int
+	browserMemoKey     browserFilterMemoKey
+	browserMemoEntries []*kopia.DirEntry
+	diffMemoKey        diffFilterMemoKey
+	diffMemoEntries    []index.DiffEntry
 
 	// Display geometry for resolution-adaptive UI/font scaling
 	displayBounds mygo.Rectangle
@@ -349,6 +381,10 @@ func New(opts Options) *App {
 			a.searchDirty = true
 		})
 	})
+	a.indexer.SetMaxCacheMB(a.settings.CacheMaxMB)
+	a.indexer.SetOnSourceSnapshots(func(repoID string, src kopia.SourceInfo, snaps []*kopia.Snapshot) {
+		a.putCachedSnapshots(repoID, src.String(), true, snaps)
+	})
 
 	if !opts.DisableServers {
 		a.manager = kopia.NewManager(kopiaBin, opts.LogDir, func() {
@@ -401,14 +437,15 @@ func (a *App) SeedRepoState(repoID string, st kopia.RepoSnapshotState) {
 // SeedSnapshotsAndEntries populates snapshots and directory entries for headless UI tests.
 func (a *App) SeedSnapshotsAndEntries(sourceStr string, snaps []*kopia.Snapshot, entries []*kopia.DirEntry) {
 	a.snapSourceStr = sourceStr
-	a.snapshots = snaps
+	a.setSnapshotsSlice(snaps)
 	if len(snaps) > 0 {
 		a.selectedSnapIdx = 0
 		a.browserBreadcrumbs = []dirCrumb{{Name: "", OID: snaps[0].RootID}}
 	}
-	a.browserEntries = entries
+	a.setBrowserEntriesSlice(entries)
 	a.diffSourceStr = sourceStr
 	a.diffSnapshots = slices.Clone(snaps)
+	a.diffActiveCalcKey = ""
 	a.ensureDefaultDiffPair()
 }
 
@@ -452,7 +489,9 @@ func RunDesktop() error {
 	mygo.App.OnWindowAllClosed(func() {
 		if !app.canRunInBackground() {
 			mygo.App.Quit()
+			return
 		}
+		app.trimCachesForBackground()
 	})
 	mygo.App.OnActivate(func(hasVisible bool) {
 		if !hasVisible {
@@ -465,6 +504,9 @@ func RunDesktop() error {
 	mygo.App.OnQuit(func() {
 		if app.manager != nil {
 			app.manager.Shutdown()
+		}
+		if app.indexer != nil {
+			_ = app.indexer.Close()
 		}
 	})
 
@@ -905,9 +947,16 @@ func (a *App) activeRepoState() (config.RepoProfile, kopia.RepoSnapshotState) {
 		if st.Profile.ID == "" {
 			st.Profile = prof
 		}
+		if a.indexer != nil && prof.ID != "" {
+			a.indexer.SetRepoRemote(prof.ID, isRemoteRepository(prof, st))
+		}
 		return prof, st
 	}
-	return prof, kopia.RepoSnapshotState{Profile: prof}
+	empty := kopia.RepoSnapshotState{Profile: prof}
+	if a.indexer != nil && prof.ID != "" {
+		a.indexer.SetRepoRemote(prof.ID, isRemoteRepository(prof, empty))
+	}
+	return prof, empty
 }
 
 func (a *App) removeRepoProfileFromList(repoID string) {
@@ -956,6 +1005,7 @@ func (a *App) activateRepo(repoID string) {
 		a.refreshCancel = nil
 	}
 	a.refreshing = false
+	a.refreshSlow = false
 	a.refreshPhase = ""
 	a.refreshSeq++
 	a.snapLoadSeq++
@@ -963,21 +1013,29 @@ func (a *App) activateRepo(repoID string) {
 	a.diffLoadSeq++
 	a.diffCalcSeq++
 	a.snapLoading = false
+	a.snapLoadSlow = false
 	a.browserLoading = false
+	a.browserLoadSlow = false
+	a.diffSnapLoading = false
+	a.diffSnapSlow = false
 	a.diffLoading = false
+	a.diffCalcSlow = false
 
 	a.settings.ActiveRepoID = repoID
 	_ = config.Save(a.userDataDir, a.settings)
-	a.snapshots = nil
+	a.forceOnboardingRepoID = ""
+	a.repoActivating = false
+	a.setSnapshotsSlice(nil)
 	a.selectedSnapIdx = -1
 	a.browserBreadcrumbs = nil
-	a.browserEntries = nil
+	a.setBrowserEntriesSlice(nil)
 	a.diffSourceStr = ""
 	a.diffSnapshots = nil
 	a.diffBaseSnapID = ""
 	a.diffTargetSnapID = ""
 	a.diffActivePreset = 0
-	a.diffSummary = index.DiffSummary{}
+	a.diffActiveCalcKey = ""
+	a.setDiffSummary(index.DiffSummary{})
 	a.policyLoadedTarget = ""
 	a.repoDescLoadedID = ""
 	a.throttleLoadedID = ""
@@ -987,12 +1045,20 @@ func (a *App) activateRepo(repoID string) {
 	if a.manager == nil || repoID == "" {
 		return
 	}
+	// Restore persisted catalog stats & search items in < 5ms from bbolt if already indexed on disk
+	a.indexer.EnsureCatalogLoaded(repoID)
 	seq := a.refreshSeq
 	autoIndex := a.settings.AutoIndex
+	a.repoActivating = true
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 		defer cancel()
 		cli, err := a.manager.EnsureStarted(ctx, repoID)
+		a.uiUpdate(func() {
+			if a.refreshSeq == seq {
+				a.repoActivating = false
+			}
+		})
 		if err != nil {
 			return
 		}
@@ -1029,14 +1095,10 @@ func (a *App) preloadFirstSourceDefaults(ctx context.Context, repoID string, cli
 	}
 	firstSrc := sources[0].Source
 	firstSrcStr := firstSrc.String()
-	resp, err := cli.ListSnapshots(ctx, firstSrc, true)
+	snaps, err := a.fetchSnapshotsCoalesced(ctx, repoID, firstSrc, true)
 	if err != nil {
 		return
 	}
-	snaps := resp.Snapshots
-	slices.SortFunc(snaps, func(x, y *kopia.Snapshot) int {
-		return y.StartTime.Compare(x.StartTime.Time)
-	})
 	a.uiUpdate(func() {
 		if a.settings.ActiveRepoID != repoID {
 			return
@@ -1045,7 +1107,11 @@ func (a *App) preloadFirstSourceDefaults(ctx context.Context, repoID string, cli
 			a.snapSourceStr = firstSrcStr
 		}
 		if len(a.snapshots) == 0 && a.snapSourceStr == firstSrcStr {
-			a.snapshots = slices.Clone(snaps)
+			if a.snapShowIdentical {
+				a.setSnapshotsSlice(slices.Clone(snaps))
+			} else {
+				a.setSnapshotsSlice(filterUniqueRootSnapshots(snaps))
+			}
 			if len(a.snapshots) > 0 {
 				a.selectedSnapIdx = 0
 				a.openSnapshotRoot(a.snapshots[0])
@@ -1064,26 +1130,29 @@ func (a *App) preloadFirstSourceDefaults(ctx context.Context, repoID string, cli
 	})
 }
 
-// activeRefreshStatus reports whether any refresh/sync/index operation is running in the current repo,
-// along with a concise localized status label for the top-right toolbar.
+// activeRefreshStatus reports whether any >=0.3s estimated slow operation is running in the current repo,
+// along with a concise localized status label for the top-right toolbar (preventing <0.3s spinner flashes).
 func (a *App) activeRefreshStatus(prof config.RepoProfile, st kopia.RepoSnapshotState) (bool, string) {
-	if a.refreshing {
+	if a.refreshing && (a.refreshSlow || isRemoteRepository(prof, st)) {
 		if a.refreshPhase != "" {
 			return true, a.refreshPhase
 		}
 		return true, locales.Refreshing()
 	}
-	if a.diffLoading {
+	if a.diffLoading && a.diffCalcSlow {
+		if n := len(a.diffSummary.Entries); n > 0 {
+			return true, locales.ComparingItemsFound(n)
+		}
 		if a.diffTargetSnapID == diffTargetLocalDir {
 			return true, locales.ComparingWithLocalFolder()
 		}
 		return true, locales.ComparingSnapshots()
 	}
-	if a.snapLoading || a.browserLoading {
+	if (a.diffSnapLoading && a.diffSnapSlow) || (a.snapLoading && a.snapLoadSlow) || (a.browserLoading && a.browserLoadSlow) {
 		return true, locales.LoadingSnapshots()
 	}
 	if prof.ID != "" {
-		if idxStats, ok := a.indexer.Stats(prof.ID); ok && idxStats.Indexing {
+		if idxStats, ok := a.indexer.Stats(prof.ID); ok && idxStats.Indexing && idxStats.SlowOp {
 			if idxStats.ProgressDirs > 0 {
 				return true, locales.IndexingDirsProgress(int(idxStats.ProgressDirs))
 			}
@@ -1093,7 +1162,20 @@ func (a *App) activeRefreshStatus(prof config.RepoProfile, st kopia.RepoSnapshot
 	if st.Starting {
 		return true, locales.Starting()
 	}
+	if a.isRepoActivelyConnecting(prof, st) && isRemoteRepository(prof, st) {
+		return true, locales.ConnectingToRepository()
+	}
 	return false, ""
+}
+
+func (a *App) isRepoActivelyConnecting(prof config.RepoProfile, st kopia.RepoSnapshotState) bool {
+	if a.manager == nil || st.Connected() || a.forceOnboardingRepoID == prof.ID || strings.TrimSpace(prof.StorageHint) == "" {
+		return false
+	}
+	return a.repoActivating ||
+		st.Starting ||
+		(st.ServerRunning && st.Status == nil && st.LastError == "") ||
+		(st.Status != nil && st.Status.InitRepoTaskID != "")
 }
 
 func (a *App) triggerManualRefresh() {
@@ -1103,8 +1185,7 @@ func (a *App) triggerManualRefresh() {
 		a.refreshCancel = nil
 	}
 
-	// Reset form-loaded markers synchronously at the moment refresh starts (never at the end of a slow background goroutine),
-	// so edits made by the user while refresh runs in the background are never overwritten later!
+	// Reset form-loaded markers and invalidate mutable snapshot/policy caches synchronously at refresh start.
 	a.searchDirty = true
 	a.policyLoadedTarget = ""
 	a.repoDescLoadedID = ""
@@ -1117,6 +1198,8 @@ func (a *App) triggerManualRefresh() {
 	}
 
 	repoID := a.settings.ActiveRepoID
+	a.invalidateRepoSnapshotsCache(repoID)
+	a.invalidateRepoPolicyCache(repoID)
 	if a.manager == nil || repoID == "" {
 		if a.activeNav == navDiff {
 			a.runSnapshotDiffAsync()
@@ -1127,18 +1210,13 @@ func (a *App) triggerManualRefresh() {
 
 	a.refreshSeq++
 	seq := a.refreshSeq
-	a.refreshing = true
-	a.refreshPhase = locales.Refreshing()
 	activeNav := a.activeNav
 	selectedTaskID := a.selectedTaskID
 	autoIndex := a.settings.AutoIndex
-	prof, _ := a.activeRepoState()
-
-	if activeNav == navSnapshots {
-		a.reloadSnapshotsAsync()
-	} else if activeNav == navDiff {
-		a.reloadDiffSnapshotsAsync()
-	}
+	prof, st := a.activeRepoState()
+	a.refreshing = true
+	a.refreshSlow = a.estimateManualRefreshSlow(prof, st, autoIndex || activeNav == navSearch)
+	a.refreshPhase = locales.Refreshing()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	a.refreshCancel = cancel
@@ -1148,6 +1226,7 @@ func (a *App) triggerManualRefresh() {
 		defer a.uiUpdate(func() {
 			if a.refreshSeq == seq {
 				a.refreshing = false
+				a.refreshSlow = false
 				a.refreshPhase = ""
 				a.refreshCancel = nil
 			}
@@ -1161,13 +1240,22 @@ func (a *App) triggerManualRefresh() {
 			return
 		}
 
-		// Phase 1 (Fast <100ms): Immediately refresh local Kopia server state (sources, tasks, policies, mounts)
-		// and preload default source snapshots BEFORE remote blob sync locks the Kopia server.
+		// Phase 1 (Fast <100ms): Refresh local Kopia server state and reload active view once before remote blob sync.
 		a.manager.RefreshRepo(ctx, repoID, false)
 		if ctx.Err() != nil {
 			return
 		}
 		a.preloadFirstSourceDefaults(ctx, repoID, cli)
+		a.uiUpdate(func() {
+			if a.refreshSeq != seq || a.settings.ActiveRepoID != repoID {
+				return
+			}
+			if a.activeNav == navSnapshots {
+				a.reloadSnapshotsAsync()
+			} else if a.activeNav == navDiff {
+				a.reloadDiffSnapshotsAsync()
+			}
+		})
 
 		if activeNav == navTasks && selectedTaskID != "" {
 			if logs, err := cli.GetTaskLogs(ctx, selectedTaskID); err == nil {
@@ -1180,6 +1268,14 @@ func (a *App) triggerManualRefresh() {
 		}
 
 		// Phase 2: Sync repository index blobs from storage & refresh maintenance/stats if needed
+		prevSnapMarker := ""
+		if stBefore, ok := a.manager.State(repoID); ok {
+			for _, s := range stBefore.SourceList() {
+				if s.LastSnapshot != nil {
+					prevSnapMarker += s.Source.String() + ":" + s.LastSnapshot.ID + ";"
+				}
+			}
+		}
 		a.uiUpdate(func() {
 			if a.refreshSeq == seq {
 				a.refreshPhase = locales.SyncingRepository()
@@ -1193,18 +1289,29 @@ func (a *App) triggerManualRefresh() {
 		if ctx.Err() != nil {
 			return
 		}
+		nextSnapMarker := ""
+		if stAfter, ok := a.manager.State(repoID); ok {
+			for _, s := range stAfter.SourceList() {
+				if s.LastSnapshot != nil {
+					nextSnapMarker += s.Source.String() + ":" + s.LastSnapshot.ID + ";"
+				}
+			}
+		}
 
-		// Reload snapshots or diff if user is currently on those views and hasn't started a newer load
-		a.uiUpdate(func() {
-			if a.refreshSeq != seq || a.settings.ActiveRepoID != repoID {
-				return
-			}
-			if a.activeNav == navSnapshots && !a.snapLoading {
-				a.reloadSnapshotsAsync()
-			} else if a.activeNav == navDiff && !a.diffLoading {
-				a.reloadDiffSnapshotsAsync()
-			}
-		})
+		// Only trigger a second view reload if remote blob sync actually discovered new snapshots!
+		if nextSnapMarker != prevSnapMarker {
+			a.invalidateRepoSnapshotsCache(repoID)
+			a.uiUpdate(func() {
+				if a.refreshSeq != seq || a.settings.ActiveRepoID != repoID {
+					return
+				}
+				if a.activeNav == navSnapshots {
+					a.reloadSnapshotsAsync()
+				} else if a.activeNav == navDiff {
+					a.reloadDiffSnapshotsAsync()
+				}
+			})
+		}
 
 		// Phase 3: Incrementally sync Global Search DAG index (cached directory OIDs are skipped in O(1))
 		if autoIndex || activeNav == navSearch {
@@ -1501,12 +1608,14 @@ func (a *App) renderSidebarNavBody(c *ui.Context, collapsed bool) {
 		dotColor := p.muted
 		if activeState.Connected() {
 			dotColor = c.Theme().Success
-		} else if activeState.Starting {
+		} else if activeState.Starting || a.isRepoActivelyConnecting(prof, activeState) {
 			dotColor = c.Theme().Warning
 		}
 		repoTip := locales.Repositories()
-		if prof.Name != "" {
-			repoTip = prof.Name + " — " + locales.Repositories()
+		if prof.Name != "" && prof.StorageHint != "" {
+			repoTip = prof.Name + " · " + prof.StorageHint
+		} else if prof.Name != "" {
+			repoTip = prof.Name
 		}
 
 		attachRepoMenus := func(btn ui.Element) {
@@ -1555,8 +1664,8 @@ func (a *App) renderSidebarNavBody(c *ui.Context, collapsed bool) {
 				Radius(8).
 				AlignItems(ui.Center).
 				Background(ui.Transparent).
-				Label(locales.Repositories()).
-				Tooltip(repoTip)
+				Label(locales.Repositories())
+			tooltipRight(c, repoBtn, repoTip)
 			if repoBtn.Hovered() {
 				repoBtn.Background(c.Theme().SurfaceHover)
 			}
@@ -1572,8 +1681,8 @@ func (a *App) renderSidebarNavBody(c *ui.Context, collapsed bool) {
 					Radius(8).
 					AlignItems(ui.Center).
 					Background(p.cardBg).
-					Label(locales.Repositories()).
-					Tooltip(repoTip)
+					Label(locales.Repositories())
+				tooltipBelow(c, repoBtn, repoTip)
 				if repoBtn.Hovered() {
 					repoBtn.Background(c.Theme().SurfaceHover)
 				}
@@ -1590,16 +1699,17 @@ func (a *App) renderSidebarNavBody(c *ui.Context, collapsed bool) {
 				})
 				attachRepoMenus(repoBtn)
 
-				if ui.Button(c, "").
+				addRepoBtn := ui.Button(c, "").
 					Label(locales.AddRepository()).
-					Tooltip(locales.AddRepository()).
 					Size(30, 30).
 					Shrink(0).
 					Padding(0).
 					Radius(7).
 					Children(func() {
 						ui.Icon(c, iconPlus).FontSize(13)
-					}).Clicked() {
+					})
+				tooltipBelow(c, addRepoBtn, locales.AddRepository())
+				if addRepoBtn.Clicked() {
 					a.openConnectWizard(true)
 				}
 			})
@@ -1627,7 +1737,7 @@ func (a *App) renderSidebarNavBody(c *ui.Context, collapsed bool) {
 				btn.Background(c.Theme().SurfaceHover)
 			}
 			if collapsed {
-				btn.Tooltip(label)
+				tooltipRight(c, btn, label)
 			}
 			btn.Children(func() {
 				ui.Row(c).Size(36, 36).Shrink(0).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
@@ -1716,9 +1826,11 @@ func (a *App) renderTopToolbar(c *ui.Context, prof config.RepoProfile, st kopia.
 		Background(p.canvas).
 		DragWindow().
 		Children(func() {
-			if ui.Button(c, "").Label(locales.ToggleSidebar()).Tooltip(toggleTip+modShortcutHint("B")).Padding(5, 7).Children(func() {
+			toggleBtn := ui.Button(c, "").Label(locales.ToggleSidebar()).Padding(5, 7).Children(func() {
 				ui.Icon(c, iconSidebar).FontSize(15)
-			}).Clicked() {
+			})
+			tooltipBelow(c, toggleBtn, toggleTip+modShortcutHint("B"))
+			if toggleBtn.Clicked() {
 				a.toggleSidebarCollapsed()
 			}
 
@@ -1733,6 +1845,8 @@ func (a *App) renderTopToolbar(c *ui.Context, prof config.RepoProfile, st kopia.
 
 			if st.Starting {
 				statusPill(c, locales.Starting(), c.Theme().Warning, p.warningSoft)
+			} else if a.isRepoActivelyConnecting(prof, st) {
+				statusPill(c, locales.ConnectingToRepository(), c.Theme().Warning, p.warningSoft)
 			} else if st.Connected() {
 				statusPill(c, locales.Connected(), c.Theme().Success, p.successSoft)
 			} else if a.manager != nil {
@@ -1742,7 +1856,7 @@ func (a *App) renderTopToolbar(c *ui.Context, prof config.RepoProfile, st kopia.
 			ui.Spacer(c)
 
 			spinning, spinStatus := a.activeRefreshStatus(prof, st)
-			if spinning && spinStatus != "" {
+			if spinning && spinStatus != "" && spinStatus != locales.ConnectingToRepository() {
 				statusPill(c, spinStatus, c.Theme().Accent, p.accentSoft)
 			}
 
@@ -1752,8 +1866,8 @@ func (a *App) renderTopToolbar(c *ui.Context, prof config.RepoProfile, st kopia.
 			}
 			refreshBtn := ui.Button(c.Key("toolbar-refresh-btn"), "").
 				Label(locales.Refresh()).
-				Tooltip(refreshTip).
 				Padding(5, 7)
+			tooltipBelow(c, refreshBtn, refreshTip)
 			refreshBtn.Children(func() {
 				ic := ui.Icon(c.Key("toolbar-refresh-icon"), iconRefresh).FontSize(14)
 				if spinning {
@@ -1777,8 +1891,15 @@ func (a *App) renderRouteBody(c *ui.Context, prof config.RepoProfile, st kopia.R
 		case navTasks:
 			a.renderTasksView(c, prof, st)
 		default:
+			if st.Connected() && a.forceOnboardingRepoID == prof.ID {
+				a.forceOnboardingRepoID = ""
+			}
 			if !st.Connected() && a.manager != nil {
-				a.renderRepoOnboarding(c, prof, st)
+				if strings.TrimSpace(prof.StorageHint) != "" && a.forceOnboardingRepoID != prof.ID {
+					a.renderRepoConnecting(c, prof, st)
+				} else {
+					a.renderRepoOnboarding(c, prof, st)
+				}
 				return
 			}
 			switch a.activeNav {

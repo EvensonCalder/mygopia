@@ -516,5 +516,15 @@
   "azureStorageAccessKeyOrSASToken": "Azure アクセスキーまたは SAS トークンを入力してください",
   "gcsBucketNameIsRequired": "GCS バケット名を入力してください",
   "azureContainerAndStorageAccountAreRequired": "Azure コンテナー名とストレージアカウント名を入力してください",
-  "refreshRSyncsRepositoryIncrementalIndexClick": "更新 (⌘R) でリポジトリ同期と増分インデックス更新を行います。ここをクリックすると手動スキャンを実行します（キャッシュ済みフォルダはスキップ）。"
+  "refreshRSyncsRepositoryIncrementalIndexClick": "更新 (⌘R) でリポジトリ同期と増分インデックス更新を行います。ここをクリックすると手動スキャンを実行します（キャッシュ済みフォルダはスキップ）。",
+  "indexAndCache": "検索インデックスとキャッシュ",
+  "maxCacheSize": "ローカルキャッシュ上限",
+  "cacheUsageOfMax": "現在のディスク使用量: {used} / {max}",
+  "clearCache": "キャッシュを消去",
+  "cacheCleared": "ローカルキャッシュを消去しました",
+  "comparingItemsFound": "比較中（{count, number, ::group-off} 件の変更）…",
+  "connectingToRepository": "リポジトリに接続中…",
+  "establishingStorageConnectionHint": "ローカルの Kopia エンジンを起動しストレージへ接続しています。待機中も「検索」や「タスクとログ」を利用できます。",
+  "repositoryConnectionTimedOut": "ストレージの応答がタイムアウトしました。ネットワーク接続や認証情報を確認して再試行してください。",
+  "retryConnection": "再試行"
 }

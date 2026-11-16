@@ -516,5 +516,15 @@
   "azureStorageAccessKeyOrSASToken": "Azure storage access key or SAS token is required",
   "gcsBucketNameIsRequired": "GCS bucket name is required",
   "azureContainerAndStorageAccountAreRequired": "Azure container and storage account are required",
-  "refreshRSyncsRepositoryIncrementalIndexClick": "Refresh (⌘R) syncs repository & incremental index; click here to manually scan snapshot trees (cached folders are skipped)."
+  "refreshRSyncsRepositoryIncrementalIndexClick": "Refresh (⌘R) syncs repository & incremental index; click here to manually scan snapshot trees (cached folders are skipped).",
+  "indexAndCache": "Search Index & Cache",
+  "maxCacheSize": "Max Local Cache Size",
+  "cacheUsageOfMax": "Current disk usage: {used} / {max}",
+  "clearCache": "Clear Cache",
+  "cacheCleared": "Local cache cleared",
+  "comparingItemsFound": "Comparing ({count, number, ::group-off} changes)…",
+  "connectingToRepository": "Connecting to repository…",
+  "establishingStorageConnectionHint": "Starting local Kopia engine and connecting to storage backend. You can still use Search or view Logs while waiting.",
+  "repositoryConnectionTimedOut": "Storage backend took too long to respond. Check your network connection or credentials and retry.",
+  "retryConnection": "Retry Connection"
 }

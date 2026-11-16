@@ -1,7 +1,7 @@
 // @scope.file kopia.manager
-// @hash sha256:b3cf54f5072da57d
+// @hash sha256:332d271a00525eae
 // @implements spec.kopia_engine sha256:44f993b3db7e5386
-// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default config.store sha256:b49642aa028d360a
 // @ref default kopia.cli sha256:f11fd6c9a799ad7e
 // @ref default kopia.client sha256:c1253141ff6ec455
 // @ref default kopia.server sha256:283407c82903e997
@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"mygopia/internal/config"
@@ -73,6 +74,9 @@ type managedRepo struct {
 	profile config.RepoProfile
 	runner  *ServerRunner
 	cli     CLIHelper
+
+	refreshMu       sync.Mutex
+	refreshInFlight atomic.Bool
 
 	mu    sync.RWMutex
 	state RepoSnapshotState
@@ -317,6 +321,32 @@ func (m *Manager) RefreshRepo(ctx context.Context, repoID string, includeHeavy b
 	if mr == nil {
 		return
 	}
+	mr.refreshMu.Lock()
+	mr.refreshInFlight.Store(true)
+	defer func() {
+		mr.refreshInFlight.Store(false)
+		mr.refreshMu.Unlock()
+	}()
+	m.refreshRepoLocked(ctx, mr, includeHeavy)
+}
+
+func (m *Manager) tryRefreshRepo(ctx context.Context, repoID string) {
+	mr := m.getManaged(repoID)
+	if mr == nil || mr.refreshInFlight.Load() {
+		return
+	}
+	if !mr.refreshMu.TryLock() {
+		return
+	}
+	mr.refreshInFlight.Store(true)
+	defer func() {
+		mr.refreshInFlight.Store(false)
+		mr.refreshMu.Unlock()
+	}()
+	m.refreshRepoLocked(ctx, mr, false)
+}
+
+func (m *Manager) refreshRepoLocked(ctx context.Context, mr *managedRepo, includeHeavy bool) {
 	runner := mr.runnerRef()
 	cli := runner.Client()
 	if cli == nil || !runner.Running() {
@@ -327,9 +357,15 @@ func (m *Manager) RefreshRepo(ctx context.Context, repoID string, includeHeavy b
 		return
 	}
 
-	timeout := 12 * time.Second
+	mr.mu.RLock()
+	initialStatus := mr.state.Status == nil
+	mr.mu.RUnlock()
+
+	timeout := 15 * time.Second
 	if includeHeavy {
 		timeout = 45 * time.Second
+	} else if initialStatus {
+		timeout = 20 * time.Second
 	}
 	rctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -544,14 +580,20 @@ func (m *Manager) pollLoop() {
 
 			for _, id := range ids {
 				mr := m.getManaged(id)
-				if mr == nil || !mr.runnerRef().Running() {
+				if mr == nil || mr.refreshInFlight.Load() || !mr.runnerRef().Running() {
 					continue
 				}
 				mr.mu.RLock()
-				busy := mr.state.ActiveTaskCount() > 0 || (mr.state.Status != nil && mr.state.Status.InitRepoTaskID != "")
+				starting := mr.state.Starting
+				busy := mr.state.ActiveTaskCount() > 0 ||
+					(mr.state.Status != nil && mr.state.Status.InitRepoTaskID != "") ||
+					(mr.state.Status == nil && mr.state.Profile.StorageHint != "")
 				mr.mu.RUnlock()
+				if starting {
+					continue
+				}
 				if busy || ticks%3 == 0 {
-					m.RefreshRepo(m.ctx, id, false)
+					m.tryRefreshRepo(m.ctx, id)
 				}
 			}
 		}

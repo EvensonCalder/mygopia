@@ -1,18 +1,18 @@
 // @scope.file app.view_search
-// @hash sha256:a19003c4c38dcc82
-// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @hash sha256:e9ad75c5374d5129
+// @implements spec.desktop_ui sha256:67347d72ce79be0a
 // @ref default github.com/egoist/mygo@0.9.1
 // @ref default github.com/egoist/mygo/ui@0.9.1
-// @ref default config.store sha256:7d43ead294b5aae9
-// @ref default index.engine sha256:675b0ff7a488f692
-// @ref default index.search sha256:5340b345cb936708
-// @ref default kopia.manager sha256:b3cf54f5072da57d
+// @ref default config.store sha256:b49642aa028d360a
+// @ref default index.engine sha256:1aea8ec7725d31ae
+// @ref default index.search sha256:dee0e6b0225186a9
+// @ref default kopia.manager sha256:332d271a00525eae
 // @ref default kopia.types sha256:06dd81559d688041
-// @ref default app.core sha256:55bd88b4ebb6da29
+// @ref default app.core sha256:35c4a3caee9a794f
 // @ref default app.icons sha256:a3df148b095e3dde
-// @ref default app.theme sha256:e59b9f47ce2180d6
-// @ref default app.view_diff sha256:0d80eba003c289aa
-// @ref default app.view_snapshots sha256:019743d5d1f2f9e1
+// @ref default app.theme sha256:5167155d01845017
+// @ref default app.view_diff sha256:7a1c425c5f83abf0
+// @ref default app.view_snapshots sha256:d032290fc4d5b704
 // Cross-repository file/folder version search view with version history inspection and one-click restore.
 
 package app
@@ -50,6 +50,10 @@ func (a *App) triggerIndexActiveRepo() {
 			a.toast(err.Error(), true)
 			return
 		}
+		a.uiUpdate(func() {
+			a.searchDirty = true
+			a.searchVerHistKey = ""
+		})
 		if stats, ok := a.indexer.Stats(repoID); ok {
 			a.toast(locales.IndexUpdatedSummary(stats.FileCount, stats.FolderCount), false)
 		}
@@ -198,6 +202,15 @@ func (a *App) resetSearchFilters() {
 
 func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.RepoSnapshotState) {
 	p := paletteOf(c)
+	if a.indexer != nil {
+		if a.searchAllRepos {
+			for _, r := range a.settings.Repositories {
+				a.indexer.EnsureCatalogLoaded(r.ID)
+			}
+		} else if prof.ID != "" {
+			a.indexer.EnsureCatalogLoaded(prof.ID)
+		}
+	}
 	idxStats, hasIdx := a.indexer.Stats(prof.ID)
 	anyStats := a.indexer.AllStats()
 
@@ -229,7 +242,7 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 			}
 
 			btnText := locales.UpdateIndex()
-			if idxStats.Indexing {
+			if idxStats.Indexing && idxStats.SlowOp {
 				btnText = locales.Indexing()
 			}
 			ui.PrimaryButton(c, btnText).
@@ -453,6 +466,16 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 
 		if len(a.searchResult.Items) == 0 {
 			card(c, func() {
+				if idxStats.Indexing && !a.hasActiveSearchFilters() && strings.TrimSpace(a.searchQuery) == "" {
+					lbl := locales.Indexing()
+					if idxStats.ProgressDirs > 0 {
+						lbl = locales.IndexingDirsProgress(int(idxStats.ProgressDirs))
+					}
+					ui.Column(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+						ui.Text(c, lbl).TextColor(p.muted)
+					})
+					return
+				}
 				emptyState(c, iconSearch, locales.NoMatchingItems(), "", "", nil)
 			}).Grow(1)
 			return
@@ -483,6 +506,16 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 			a.searchTable.Selected = &a.searchSelectedRow
 			a.searchTable.Sort = &a.searchSort
 
+			indexingByRepo := make(map[string]bool, len(anyStats)+1)
+			for _, rs := range anyStats {
+				if rs.Indexing {
+					indexingByRepo[rs.RepoID] = true
+				}
+			}
+			if idxStats.Indexing && prof.ID != "" {
+				indexingByRepo[prof.ID] = true
+			}
+
 			ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Gap(8).Children(func() {
 				tblCard := card(c, func() {
 					ui.Table(c, &a.searchTable, cols, len(a.searchResult.Items), func(row, col int) {
@@ -491,13 +524,25 @@ func (a *App) renderSearchView(c *ui.Context, prof config.RepoProfile, st kopia.
 						primary, secondary, iconAccent := tableRowColors(c, selected)
 						switch col {
 						case 0:
+							rowIncomplete := indexingByRepo[it.RepoID]
+							nameColor := primary
+							dirIconColor := iconAccent
+							if rowIncomplete {
+								if selected {
+									nameColor = secondary
+									dirIconColor = secondary
+								} else {
+									nameColor = p.muted
+									dirIconColor = p.muted
+								}
+							}
 							r := ui.Row(c).AlignItems(ui.Center).Gap(7).Children(func() {
 								if it.IsDir {
-									ui.Icon(c, iconFolder).FontSize(14).TextColor(iconAccent)
+									ui.Icon(c, iconFolder).FontSize(14).TextColor(dirIconColor)
 								} else {
 									ui.Icon(c, iconFile).FontSize(14).TextColor(secondary)
 								}
-								ui.Text(c, it.Path).TextColor(primary).SingleLine()
+								ui.Text(c, it.Path).TextColor(nameColor).SingleLine()
 							})
 							r.ContextMenu(func(m *ui.Menu) {
 								if !it.IsDir && a.desktopRunning {
@@ -594,6 +639,28 @@ func (a *App) renderSearchInspector(c *ui.Context, item index.SearchItem) {
 		a.searchVerLimit = defaultVersionPageSize
 	}
 
+	history := item.History
+	if len(history) == 0 && a.indexer != nil {
+		histKey := item.RepoID + "\x00" + item.Source.String() + "\x00" + item.Path + "\x00" + intToStr(item.Versions) + "\x00" + item.LatestSnapshotID
+		if a.searchVerHistKey != histKey {
+			a.searchVerHistKey = histKey
+			a.searchVerHistSlice = a.indexer.ItemHistory(item)
+		}
+		history = a.searchVerHistSlice
+	}
+	verBadgeCount := max(item.Versions, len(history))
+
+	itemIncomplete := false
+	if a.indexer != nil && item.RepoID != "" {
+		if st, ok := a.indexer.Stats(item.RepoID); ok && st.Indexing {
+			itemIncomplete = true
+		}
+	}
+	titleColor := p.text
+	if itemIncomplete {
+		titleColor = p.muted
+	}
+
 	card(c, func() {
 		ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
 			if item.IsDir {
@@ -601,7 +668,7 @@ func (a *App) renderSearchInspector(c *ui.Context, item index.SearchItem) {
 			} else {
 				ui.Icon(c, iconFile).FontSize(16).TextColor(p.accent)
 			}
-			ui.Text(c, item.Name).FontSize(14).FontWeight(600).Grow(1).SingleLine()
+			ui.Text(c, item.Name).FontSize(14).FontWeight(600).TextColor(titleColor).Grow(1).SingleLine()
 			if compactButton(c, locales.Close()).Clicked() {
 				a.searchSelectedRow = -1
 			}
@@ -622,10 +689,10 @@ func (a *App) renderSearchInspector(c *ui.Context, item index.SearchItem) {
 		ui.Box(c).Height(1).Background(p.border).Shrink(0)
 		ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
 			ui.Text(c, locales.VersionHistory()).FontSize(12.5).FontWeight(600).Grow(1)
-			ui.Badge(c, intToStr(len(item.History)))
+			ui.Badge(c, intToStr(verBadgeCount))
 		})
 
-		if len(item.History) > 4 {
+		if len(history) > 4 {
 			if ui.SearchField(c.Key("ver-filter-"+item.Path), &a.searchVerFilter).
 				Placeholder(locales.FilterNotesOrTime()).
 				Changed() {
@@ -636,7 +703,7 @@ func (a *App) renderSearchInspector(c *ui.Context, item index.SearchItem) {
 		// Filter version history by timestamp or OID when query is non-empty
 		verFilter := strings.ToLower(strings.TrimSpace(a.searchVerFilter))
 		var matchedHistory []index.VersionRecord
-		for _, ver := range item.History {
+		for _, ver := range history {
 			if verFilter != "" {
 				tsStr := strings.ToLower(formatTimestamp(ver.SnapshotTime))
 				oidStr := strings.ToLower(ver.ObjectID)

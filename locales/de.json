@@ -516,5 +516,15 @@
   "azureStorageAccessKeyOrSASToken": "Azure-Zugriffsschlüssel oder SAS-Token ist erforderlich",
   "gcsBucketNameIsRequired": "GCS-Bucket-Name ist erforderlich",
   "azureContainerAndStorageAccountAreRequired": "Azure-Container und Speicherkonto sind erforderlich",
-  "refreshRSyncsRepositoryIncrementalIndexClick": "Aktualisieren (⌘R) synchronisiert Repository & inkrementellen Index; hier klicken zum manuellen Baumscan."
+  "refreshRSyncsRepositoryIncrementalIndexClick": "Aktualisieren (⌘R) synchronisiert Repository & inkrementellen Index; hier klicken zum manuellen Baumscan.",
+  "indexAndCache": "Suchindex & Lokaler Cache",
+  "maxCacheSize": "Max. lokale Cache-Größe",
+  "cacheUsageOfMax": "Aktuelle Belegung: {used} / {max}",
+  "clearCache": "Cache leeren",
+  "cacheCleared": "Lokaler Cache geleert",
+  "comparingItemsFound": "Vergleiche ({count, number, ::group-off} Änderungen)…",
+  "connectingToRepository": "Verbindung zum Repository wird hergestellt…",
+  "establishingStorageConnectionHint": "Lokale Kopia-Engine wird gestartet und mit dem Speicher verbunden. Währenddessen können Sie Suche oder Protokolle nutzen.",
+  "repositoryConnectionTimedOut": "Zeitüberschreitung beim Verbinden mit dem Speicher. Bitte Netzwerkverbindung oder Zugangsdaten prüfen und erneut versuchen.",
+  "retryConnection": "Erneut versuchen"
 }

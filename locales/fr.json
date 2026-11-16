@@ -516,5 +516,15 @@
   "azureStorageAccessKeyOrSASToken": "La clé d’accès Azure ou un jeton SAS est requis",
   "gcsBucketNameIsRequired": "Le nom du compartiment GCS est requis",
   "azureContainerAndStorageAccountAreRequired": "Le conteneur et le compte de stockage Azure sont requis",
-  "refreshRSyncsRepositoryIncrementalIndexClick": "Actualiser (⌘R) synchronise le dépôt et l’index incrémental ; cliquez ici pour analyser les arborescences manuellement."
+  "refreshRSyncsRepositoryIncrementalIndexClick": "Actualiser (⌘R) synchronise le dépôt et l’index incrémental ; cliquez ici pour analyser les arborescences manuellement.",
+  "indexAndCache": "Index et cache local",
+  "maxCacheSize": "Taille max. du cache local",
+  "cacheUsageOfMax": "Utilisation disque : {used} / {max}",
+  "clearCache": "Vider le cache",
+  "cacheCleared": "Cache local vidé",
+  "comparingItemsFound": "Comparaison ({count, number, ::group-off} modifications)…",
+  "connectingToRepository": "Connexion au dépôt…",
+  "establishingStorageConnectionHint": "Démarrage du moteur Kopia local et connexion au stockage. Vous pouvez utiliser la Recherche ou consulter les Journaux en attendant.",
+  "repositoryConnectionTimedOut": "Le stockage a mis trop de temps à répondre. Vérifiez votre connexion réseau ou vos identifiants puis réessayez.",
+  "retryConnection": "Réessayer"
 }

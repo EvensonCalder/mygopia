@@ -1,14 +1,15 @@
 // @scope.file app.view_policies
-// @hash sha256:1e415fd229eaa1fc
-// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @hash sha256:144a290ee4d6d2f2
+// @implements spec.desktop_ui sha256:67347d72ce79be0a
 // @ref default github.com/egoist/mygo/ui@0.9.1
-// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default config.store sha256:b49642aa028d360a
 // @ref default kopia.client sha256:c1253141ff6ec455
-// @ref default kopia.manager sha256:b3cf54f5072da57d
+// @ref default kopia.manager sha256:332d271a00525eae
 // @ref default kopia.types sha256:06dd81559d688041
-// @ref default app.core sha256:55bd88b4ebb6da29
-// @ref default app.theme sha256:e59b9f47ce2180d6
-// @ref default app.view_connect sha256:a81f49bd79ce52f7
+// @ref default app.cache sha256:6e5e1b91e6872ef4
+// @ref default app.core sha256:35c4a3caee9a794f
+// @ref default app.theme sha256:5167155d01845017
+// @ref default app.view_connect sha256:90b187964bdf27c9
 // Retention, scheduling, compression, ignore-rule, error-handling, and hook policy editor view.
 
 package app
@@ -739,6 +740,7 @@ func (a *App) savePolicyAction(target kopia.SourceInfo) {
 			a.toast(err.Error(), true)
 			return
 		}
+		a.invalidateRepoPolicyCache(repoID)
 		a.manager.RefreshRepo(ctx, repoID, false)
 		a.uiUpdate(func() {
 			a.loadPolicyTargetAsync(target)
@@ -771,6 +773,7 @@ func (a *App) deletePolicyAction(target kopia.SourceInfo) {
 			a.toast(err.Error(), true)
 			return
 		}
+		a.invalidateRepoPolicyCache(repoID)
 		a.manager.RefreshRepo(ctx, repoID, false)
 		a.uiUpdate(func() {
 			a.policyTargetStr = "(global)"

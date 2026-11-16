@@ -516,5 +516,15 @@
   "azureStorageAccessKeyOrSASToken": "請提供 Azure 儲存體存取金鑰或 SAS 權杖",
   "gcsBucketNameIsRequired": "請輸入 GCS 儲存貯體名稱",
   "azureContainerAndStorageAccountAreRequired": "請輸入 Azure 容器名稱與儲存體帳戶名稱",
-  "refreshRSyncsRepositoryIncrementalIndexClick": "重新整理 (⌘R) 會同步最新快照並增量更新索引；也可點擊此處手動觸發目錄樹掃描（已快取目錄自動秒略過）。"
+  "refreshRSyncsRepositoryIncrementalIndexClick": "重新整理 (⌘R) 會同步最新快照並增量更新索引；也可點擊此處手動觸發目錄樹掃描（已快取目錄自動秒略過）。",
+  "indexAndCache": "索引與本機快取",
+  "maxCacheSize": "本機快取上限",
+  "cacheUsageOfMax": "目前磁碟佔用：{used} / 上限 {max}",
+  "clearCache": "清除快取",
+  "cacheCleared": "本機快取已清除",
+  "comparingItemsFound": "正在比對（已發現 {count, number, ::group-off} 項變更）…",
+  "connectingToRepository": "正在連線儲存庫…",
+  "establishingStorageConnectionHint": "正在啟動本機 Kopia 引擎並連線儲存後端，等待期間仍可使用「全域搜尋」或檢視「任務與日誌」。",
+  "repositoryConnectionTimedOut": "儲存後端回應逾時，請檢查網路連線或憑證後重試。",
+  "retryConnection": "重試連線"
 }

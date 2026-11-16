@@ -1,18 +1,20 @@
 // @scope.file app.view_tasks_repo_settings
-// @hash sha256:cee766538e864b90
-// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @hash sha256:4c6b60617687d978
+// @implements spec.desktop_ui sha256:67347d72ce79be0a
 // @ref default github.com/egoist/mygo@0.9.1
 // @ref default github.com/egoist/mygo/ui@0.9.1
-// @ref default config.store sha256:7d43ead294b5aae9
-// @ref default index.engine sha256:675b0ff7a488f692
+// @ref default config.store sha256:b49642aa028d360a
+// @ref default index.engine sha256:1aea8ec7725d31ae
 // @ref default kopia.cli sha256:f11fd6c9a799ad7e
 // @ref default kopia.client sha256:c1253141ff6ec455
-// @ref default kopia.manager sha256:b3cf54f5072da57d
+// @ref default kopia.manager sha256:332d271a00525eae
 // @ref default kopia.types sha256:06dd81559d688041
-// @ref default app.core sha256:55bd88b4ebb6da29
+// @ref default app.cache sha256:6e5e1b91e6872ef4
+// @ref default app.core sha256:35c4a3caee9a794f
 // @ref default app.locale sha256:0ce2d55e5d85d9b3
-// @ref default app.theme sha256:e59b9f47ce2180d6
-// @ref default app.view_connect sha256:a81f49bd79ce52f7
+// @ref default app.theme sha256:5167155d01845017
+// @ref default app.view_connect sha256:90b187964bdf27c9
+// @ref default app.view_diff sha256:7a1c425c5f83abf0
 // Tasks/logs inspector, repository settings (format, bandwidth, maintenance, notifications), and app preferences view.
 
 package app
@@ -572,18 +574,27 @@ func (a *App) disconnectRepoAction() {
 			return
 		}
 		a.indexer.RemoveRepo(repoID)
+		a.invalidateRepoSnapshotsCache(repoID)
+		a.invalidateRepoPolicyCache(repoID)
 		a.manager.RefreshRepo(ctx, repoID, false)
 		a.uiUpdate(func() {
+			a.settings.Repositories = config.DiscoverProfiles(a.settings.Repositories, a.settings.EffectiveConfigDir())
+			if a.manager != nil {
+				a.manager.SyncProfiles(a.settings.Repositories)
+			}
+			a.forceOnboardingRepoID = repoID
 			if a.settings.ActiveRepoID == repoID {
-				a.snapshots = nil
+				a.setSnapshotsSlice(nil)
 				a.selectedSnapIdx = -1
 				a.browserBreadcrumbs = nil
-				a.browserEntries = nil
+				a.setBrowserEntriesSlice(nil)
 				a.diffSnapshots = nil
 				a.diffBaseSnapID = ""
 				a.diffTargetSnapID = ""
-				a.diffSummary = index.DiffSummary{}
+				a.diffActiveCalcKey = ""
+				a.setDiffSummary(index.DiffSummary{})
 				a.searchDirty = true
+				a.searchVerHistKey = ""
 			}
 		})
 	}()
@@ -792,6 +803,48 @@ var languageChoices = []languageChoice{
 	{Code: config.LangES, Label: "Español"},
 }
 
+type cacheSizePreset struct {
+	MB    int
+	Label string
+}
+
+var cacheSizePresets = []cacheSizePreset{
+	{MB: 128, Label: "128 MB"},
+	{MB: 256, Label: "256 MB"},
+	{MB: 512, Label: "512 MB"},
+	{MB: 1024, Label: "1 GB"},
+	{MB: 2048, Label: "2 GB"},
+	{MB: 4096, Label: "4 GB"},
+	{MB: 8192, Label: "8 GB"},
+}
+
+func nearestCachePresetIndex(mb int) int {
+	if mb <= 0 {
+		mb = config.DefaultCacheMaxMB
+	}
+	bestIdx := 3 // 1 GB default
+	bestDiff := int(absInt64(int64(mb - cacheSizePresets[bestIdx].MB)))
+	for i, p := range cacheSizePresets {
+		d := int(absInt64(int64(mb - p.MB)))
+		if d < bestDiff {
+			bestDiff = d
+			bestIdx = i
+		}
+	}
+	return bestIdx
+}
+
+func (a *App) refreshSettingsCacheUsage(force bool) {
+	if a.indexer == nil {
+		return
+	}
+	if !force && !a.settingsCacheUsedAt.IsZero() && time.Since(a.settingsCacheUsedAt) < 2*time.Second {
+		return
+	}
+	a.settingsCacheUsedBytes = a.indexer.DiskUsageBytes()
+	a.settingsCacheUsedAt = time.Now()
+}
+
 func (a *App) syncSettingsDraft() {
 	switch a.settings.Theme {
 	case config.ThemeLight:
@@ -818,6 +871,9 @@ func (a *App) syncSettingsDraft() {
 	default:
 		a.settingsScaleSeg = 1
 	}
+
+	a.settingsCacheMaxIdx = nearestCachePresetIndex(a.settings.CacheMaxMB)
+	a.refreshSettingsCacheUsage(true)
 
 	a.settingsKopiaBin = a.settings.KopiaBinary
 	a.settingsRcloneBin = a.settings.RcloneBinary
@@ -999,9 +1055,68 @@ func (a *App) renderSettingsView(c *ui.Context) {
 					a.notifyAtom.Store(a.settings.Notify)
 					_ = config.Save(a.userDataDir, a.settings)
 				}
+			})
+
+			// Index & Cache
+			card(c, func() {
+				a.refreshSettingsCacheUsage(false)
+				ui.Text(c, locales.IndexAndCache()).FontSize(14).FontWeight(600)
 				if ui.Checkbox(c, &a.settings.AutoIndex, locales.AutomaticallyUpdateSearchIndexAfterBackups()).Changed() {
 					_ = config.Save(a.userDataDir, a.settings)
 				}
+				cacheLabels := make([]string, len(cacheSizePresets))
+				for i, pr := range cacheSizePresets {
+					cacheLabels[i] = pr.Label
+				}
+				presetIdx := min(max(a.settingsCacheMaxIdx, 0), len(cacheSizePresets)-1)
+				curCacheLabel := cacheLabels[presetIdx]
+				maxBytes := int64(a.settings.CacheMaxMB) << 20
+				if maxBytes <= 0 {
+					maxBytes = int64(config.DefaultCacheMaxMB) << 20
+				}
+				ui.Form(c, func() {
+					ui.Field(c, locales.MaxCacheSize(), func() {
+						ui.Row(c).AlignItems(ui.Center).Wrap().Gap(10).Children(func() {
+							if ui.Select(c.Key("set-cache-max"), &curCacheLabel, cacheLabels).
+								Label(locales.MaxCacheSize()).
+								Width(140).
+								Changed() {
+								for i, lbl := range cacheLabels {
+									if lbl == curCacheLabel {
+										a.settingsCacheMaxIdx = i
+										a.settings.CacheMaxMB = cacheSizePresets[i].MB
+										break
+									}
+								}
+								a.settings.Normalize()
+								_ = config.Save(a.userDataDir, a.settings)
+								if a.indexer != nil {
+									a.indexer.SetMaxCacheMB(a.settings.CacheMaxMB)
+									go func() {
+										a.indexer.EnforceCacheBudget()
+										a.uiUpdate(func() {
+											a.refreshSettingsCacheUsage(true)
+										})
+									}()
+								}
+							}
+							ui.Text(c, locales.CacheUsageOfMax(formatBytes(a.settingsCacheUsedBytes), formatBytes(maxBytes))).
+								FontSize(12).
+								FontFeatures("tnum").
+								TextColor(p.muted)
+							ui.Spacer(c)
+							if compactButton(c, locales.ClearCache()).Clicked() {
+								if a.indexer != nil {
+									_ = a.indexer.ClearDiskCache()
+								}
+								a.trimCachesForBackground()
+								a.searchDirty = true
+								a.refreshSettingsCacheUsage(true)
+								c.Toast(locales.CacheCleared())
+							}
+						})
+					})
+				})
 			})
 
 			// Kopia Engine Paths

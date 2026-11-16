@@ -1,20 +1,21 @@
 // @scope.file app.view_diff
-// @hash sha256:0d80eba003c289aa
-// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @hash sha256:7a1c425c5f83abf0
+// @implements spec.desktop_ui sha256:67347d72ce79be0a
 // @ref default github.com/egoist/mygo@0.9.1
 // @ref default github.com/egoist/mygo/ui@0.9.1
-// @ref default config.store sha256:7d43ead294b5aae9
-// @ref default index.diff sha256:652a9afb2ec395c3
-// @ref default index.engine sha256:675b0ff7a488f692
-// @ref default index.local_diff sha256:bf7d7f007cf45755
+// @ref default config.store sha256:b49642aa028d360a
+// @ref default index.diff sha256:bffd1e6ac38d6e3a
+// @ref default index.engine sha256:1aea8ec7725d31ae
+// @ref default index.local_diff sha256:73771143aa5aa7f2
 // @ref default kopia.client sha256:c1253141ff6ec455
-// @ref default kopia.manager sha256:b3cf54f5072da57d
+// @ref default kopia.manager sha256:332d271a00525eae
 // @ref default kopia.types sha256:06dd81559d688041
-// @ref default app.core sha256:55bd88b4ebb6da29
+// @ref default app.cache sha256:6e5e1b91e6872ef4
+// @ref default app.core sha256:35c4a3caee9a794f
 // @ref default app.icons sha256:a3df148b095e3dde
-// @ref default app.theme sha256:e59b9f47ce2180d6
-// @ref default app.view_policies sha256:1e415fd229eaa1fc
-// @ref default app.view_snapshots sha256:019743d5d1f2f9e1
+// @ref default app.theme sha256:5167155d01845017
+// @ref default app.view_policies sha256:144a290ee4d6d2f2
+// @ref default app.view_snapshots sha256:d032290fc4d5b704
 // Snapshot-to-snapshot and snapshot-to-local-folder comparison view with inline LCS line diff preview.
 
 package app
@@ -361,7 +362,12 @@ func localDiffOptionsFromPolicy(localDir string, pol *kopia.Policy) index.LocalD
 }
 
 func (a *App) openDiffForSource(src kopia.SourceInfo, baseSnapID, targetSnapID string) {
-	a.diffSourceStr = src.String()
+	nextSrc := src.String()
+	if a.diffSourceStr != nextSrc {
+		a.diffSnapshots = nil
+		a.diffActiveCalcKey = ""
+	}
+	a.diffSourceStr = nextSrc
 	a.diffBaseSnapID = baseSnapID
 	a.diffTargetSnapID = targetSnapID
 	a.diffActivePreset = diffPresetNone
@@ -371,7 +377,7 @@ func (a *App) openDiffForSource(src kopia.SourceInfo, baseSnapID, targetSnapID s
 
 func (a *App) reloadDiffSnapshotsAsync() {
 	repoID := a.settings.ActiveRepoID
-	_, st := a.activeRepoState()
+	prof, st := a.activeRepoState()
 	sources := st.SourceList()
 
 	if a.manager == nil {
@@ -404,54 +410,58 @@ func (a *App) reloadDiffSnapshotsAsync() {
 
 	targetSource := *chosen
 	targetSourceStr := targetSource.String()
-	// If snapshots for this source are already loaded in the Snapshot Browser, seed immediately so default Latest vs Previous is instant.
-	if len(a.diffSnapshots) == 0 && a.snapSourceStr == targetSourceStr && len(a.snapshots) > 0 {
-		a.diffSnapshots = slices.Clone(a.snapshots)
+	// Seed synchronously on Frame 0 from multi-source snapshot cache (or active Snapshot Browser list) for zero-wait switching.
+	if len(a.diffSnapshots) == 0 {
+		if cached, ok := a.lookupCachedSnapshots(repoID, targetSourceStr, true); ok && len(cached) > 0 {
+			a.diffSnapshots = cached
+		} else if a.snapSourceStr == targetSourceStr && len(a.snapshots) > 0 {
+			a.diffSnapshots = slices.Clone(a.snapshots)
+		}
+	}
+	seeded := len(a.diffSnapshots) > 0
+	if seeded {
 		a.ensureDefaultDiffPair()
-		a.runSnapshotDiffAsync()
+		if makeDiffCalcKey(repoID, a.diffBaseSnapID, a.diffTargetSnapID) != a.diffActiveCalcKey {
+			a.runSnapshotDiffAsync()
+		}
 	}
 	initialBase := a.diffBaseSnapID
 	initialTarget := a.diffTargetSnapID
 	a.diffLoadSeq++
 	seq := a.diffLoadSeq
-	a.diffLoading = true
+	a.diffSnapLoading = true
+	a.diffSnapSlow = a.estimateSnapListSlow(prof, st, seeded)
 
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
-		cli, err := a.manager.ClientFor(ctx, repoID)
+		snaps, err := a.fetchSnapshotsCoalesced(ctx, repoID, targetSource, true)
 		if err != nil {
 			a.uiUpdate(func() {
 				if a.diffLoadSeq == seq {
-					a.diffLoading = false
+					a.diffSnapLoading = false
+					a.diffSnapSlow = false
 				}
 			})
+			if !seeded {
+				a.toast(err.Error(), true)
+			}
 			return
 		}
-		resp, err := cli.ListSnapshots(ctx, targetSource, true)
-		if err != nil {
-			a.uiUpdate(func() {
-				if a.diffLoadSeq == seq {
-					a.diffLoading = false
-				}
-			})
-			a.toast(err.Error(), true)
-			return
-		}
-		snaps := resp.Snapshots
-		slices.SortFunc(snaps, func(x, y *kopia.Snapshot) int {
-			return y.StartTime.Compare(x.StartTime.Time)
-		})
 		a.uiUpdate(func() {
 			if a.diffLoadSeq != seq || a.settings.ActiveRepoID != repoID || a.diffSourceStr != targetSourceStr {
 				return
 			}
-			a.diffLoading = false
+			a.diffSnapLoading = false
+			a.diffSnapSlow = false
+			if seeded && snapshotsEqual(a.diffSnapshots, snaps) {
+				return
+			}
 			a.diffSnapshots = snaps
 			userChangedPair := (a.diffBaseSnapID != "" && a.diffBaseSnapID != initialBase) ||
 				(a.diffTargetSnapID != "" && a.diffTargetSnapID != initialTarget)
 			a.ensureDefaultDiffPair()
-			if !userChangedPair {
+			if !userChangedPair && makeDiffCalcKey(repoID, a.diffBaseSnapID, a.diffTargetSnapID) != a.diffActiveCalcKey {
 				a.runSnapshotDiffAsync()
 			}
 		})
@@ -472,7 +482,8 @@ func (a *App) normalizeDiffPair(preferChangedSide string) {
 		a.diffBaseSnapID = ""
 		a.diffTargetSnapID = ""
 		a.diffActivePreset = diffPresetNone
-		a.diffSummary = index.DiffSummary{}
+		a.diffActiveCalcKey = ""
+		a.setDiffSummary(index.DiffSummary{})
 		return
 	}
 
@@ -520,7 +531,8 @@ func (a *App) normalizeDiffPair(preferChangedSide string) {
 		a.diffTargetSnapID = snaps[0].ID
 		a.diffBaseSnapID = snaps[0].ID
 		a.diffActivePreset = diffPresetNone
-		a.diffSummary = index.DiffSummary{}
+		a.diffActiveCalcKey = ""
+		a.setDiffSummary(index.DiffSummary{})
 		return
 	}
 
@@ -679,7 +691,7 @@ func (a *App) runSnapshotDiffAsync() {
 	a.diffSelectedRow = -1
 
 	repoID := a.settings.ActiveRepoID
-	_, st := a.activeRepoState()
+	prof, st := a.activeRepoState()
 	src := parseTargetKey(a.diffSourceStr, st)
 
 	if a.diffTargetSnapID == diffTargetLocalDir {
@@ -687,9 +699,12 @@ func (a *App) runSnapshotDiffAsync() {
 		if snapA == nil || !hasLocal {
 			a.diffCalcSeq++
 			a.diffLoading = false
-			a.diffSummary = index.DiffSummary{}
+			a.diffCalcSlow = false
+			a.diffActiveCalcKey = ""
+			a.setDiffSummary(index.DiffSummary{})
 			return
 		}
+		a.diffActiveCalcKey = makeDiffCalcKey(repoID, snapA.ID, diffTargetLocalDir)
 		if a.manager == nil {
 			var effPol *kopia.Policy
 			for _, p := range st.Policies {
@@ -702,7 +717,7 @@ func (a *App) runSnapshotDiffAsync() {
 			if err != nil {
 				a.toast(err.Error(), true)
 			}
-			a.diffSummary = sum
+			a.setDiffSummary(sum)
 			return
 		}
 
@@ -710,7 +725,11 @@ func (a *App) runSnapshotDiffAsync() {
 		rootA := snapA.RootID
 		a.diffCalcSeq++
 		seq := a.diffCalcSeq
+		a.diffCalcSlow = a.estimateLocalDiffSlow(prof, st, repoID, snapA)
 		a.diffLoading = true
+		if a.diffCalcSlow {
+			a.setDiffSummary(index.DiffSummary{})
+		}
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
@@ -719,20 +738,37 @@ func (a *App) runSnapshotDiffAsync() {
 				a.uiUpdate(func() {
 					if a.diffCalcSeq == seq {
 						a.diffLoading = false
+						a.diffCalcSlow = false
+						a.diffActiveCalcKey = ""
+						a.setDiffSummary(index.DiffSummary{})
 					}
 				})
 				a.toast(err.Error(), true)
 				return
 			}
-			var effPol *kopia.Policy
-			if resPol, rerr := cli.ResolvePolicy(ctx, src, nil, 1); rerr == nil && resPol != nil {
-				effPol = resPol.Effective
-			}
-			summary, err := a.indexer.CompareRootWithLocalDir(ctx, repoID, cli, rootA, localDiffOptionsFromPolicy(localDir, effPol))
+			effPol := a.fetchEffectivePolicyCoalesced(ctx, repoID, src)
+			summary, err := a.indexer.CompareRootWithLocalDirStream(
+				ctx,
+				repoID,
+				cli,
+				rootA,
+				localDiffOptionsFromPolicy(localDir, effPol),
+				func(partial index.DiffSummary) {
+					a.uiUpdate(func() {
+						if a.diffCalcSeq != seq || a.settings.ActiveRepoID != repoID || a.diffBaseSnapID != wantBaseID || a.diffTargetSnapID != diffTargetLocalDir {
+							return
+						}
+						a.setDiffSummary(partial)
+					})
+				},
+			)
 			if err != nil {
 				a.uiUpdate(func() {
 					if a.diffCalcSeq == seq {
 						a.diffLoading = false
+						a.diffCalcSlow = false
+						a.diffActiveCalcKey = ""
+						a.setDiffSummary(index.DiffSummary{})
 					}
 				})
 				a.toast(err.Error(), true)
@@ -743,7 +779,8 @@ func (a *App) runSnapshotDiffAsync() {
 					return
 				}
 				a.diffLoading = false
-				a.diffSummary = summary
+				a.diffCalcSlow = false
+				a.setDiffSummary(summary)
 			})
 		}()
 		return
@@ -753,20 +790,37 @@ func (a *App) runSnapshotDiffAsync() {
 	if snapA == nil || snapB == nil || snapA.ID == snapB.ID {
 		a.diffCalcSeq++
 		a.diffLoading = false
-		a.diffSummary = index.DiffSummary{}
+		a.diffCalcSlow = false
+		a.diffActiveCalcKey = ""
+		a.setDiffSummary(index.DiffSummary{})
 		return
 	}
 
+	a.diffActiveCalcKey = makeDiffCalcKey(repoID, snapA.ID, snapB.ID)
 	if a.manager == nil {
-		a.diffSummary = a.indexer.CompareSeededSnapshots(repoID, src, snapA, snapB)
+		a.setDiffSummary(a.indexer.CompareSeededSnapshots(repoID, src, snapA, snapB))
 		return
 	}
 
 	wantBaseID, wantTargetID := snapA.ID, snapB.ID
 	rootA, rootB := snapA.RootID, snapB.RootID
+	if a.indexer != nil {
+		if cached, ok := a.indexer.LookupDiff(repoID, rootA, rootB); ok {
+			a.diffCalcSeq++
+			a.diffLoading = false
+			a.diffCalcSlow = false
+			a.setDiffSummary(cached)
+			return
+		}
+	}
+
 	a.diffCalcSeq++
 	seq := a.diffCalcSeq
+	a.diffCalcSlow = a.estimateSnapDiffSlow(prof, st, repoID, snapA, snapB)
 	a.diffLoading = true
+	if a.diffCalcSlow {
+		a.setDiffSummary(index.DiffSummary{})
+	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
@@ -775,16 +829,36 @@ func (a *App) runSnapshotDiffAsync() {
 			a.uiUpdate(func() {
 				if a.diffCalcSeq == seq {
 					a.diffLoading = false
+					a.diffCalcSlow = false
+					a.diffActiveCalcKey = ""
+					a.setDiffSummary(index.DiffSummary{})
 				}
 			})
 			a.toast(err.Error(), true)
 			return
 		}
-		summary, err := a.indexer.CompareRoots(ctx, repoID, cli, rootA, rootB)
+		summary, err := a.indexer.CompareRootsStream(
+			ctx,
+			repoID,
+			cli,
+			rootA,
+			rootB,
+			func(partial index.DiffSummary) {
+				a.uiUpdate(func() {
+					if a.diffCalcSeq != seq || a.settings.ActiveRepoID != repoID || a.diffBaseSnapID != wantBaseID || a.diffTargetSnapID != wantTargetID {
+						return
+					}
+					a.setDiffSummary(partial)
+				})
+			},
+		)
 		if err != nil {
 			a.uiUpdate(func() {
 				if a.diffCalcSeq == seq {
 					a.diffLoading = false
+					a.diffCalcSlow = false
+					a.diffActiveCalcKey = ""
+					a.setDiffSummary(index.DiffSummary{})
 				}
 			})
 			a.toast(err.Error(), true)
@@ -795,7 +869,8 @@ func (a *App) runSnapshotDiffAsync() {
 				return
 			}
 			a.diffLoading = false
-			a.diffSummary = summary
+			a.diffCalcSlow = false
+			a.setDiffSummary(summary)
 		})
 	}()
 }
@@ -929,11 +1004,13 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 
 	if a.diffSourceStr == "" || !slices.Contains(srcKeys, a.diffSourceStr) {
 		a.diffSourceStr = srcKeys[0]
+		a.diffSnapshots = nil
+		a.diffActiveCalcKey = ""
 		a.diffBaseSnapID = ""
 		a.diffTargetSnapID = ""
 		a.diffActivePreset = diffPresetNone
 		a.reloadDiffSnapshotsAsync()
-	} else if len(a.diffSnapshots) == 0 && !a.diffLoading {
+	} else if len(a.diffSnapshots) == 0 && !a.diffSnapLoading && !a.diffLoading {
 		a.reloadDiffSnapshotsAsync()
 	}
 
@@ -1040,6 +1117,8 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 								break
 							}
 						}
+						a.diffSnapshots = nil
+						a.diffActiveCalcKey = ""
 						a.diffBaseSnapID = ""
 						a.diffTargetSnapID = ""
 						a.diffActivePreset = diffPresetNone
@@ -1150,7 +1229,7 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 			}
 		}).Padding(12, 14).Gap(8)
 
-		if a.diffLoading && len(a.diffSnapshots) == 0 {
+		if (a.diffSnapLoading || a.diffLoading) && len(a.diffSnapshots) == 0 {
 			card(c, func() {
 				ui.Column(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 					ui.Text(c, locales.LoadingSnapshots()).TextColor(p.muted)
@@ -1314,6 +1393,8 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 		a.diffTable.Selected = &a.diffSelectedRow
 		a.diffTable.Sort = &a.diffSort
 
+		diffIncomplete := a.diffLoading || (a.diffSnapLoading && len(a.diffSnapshots) == 0)
+
 		card(c, func() {
 			tbl := ui.Table(c, &a.diffTable, cols, len(pageItems), func(row, col int) {
 				ent := pageItems[row]
@@ -1331,13 +1412,24 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 						tableStatusPill(c, selected, "- "+locales.Deleted(), c.Theme().Danger, p.dangerSoft)
 					}
 				case 1:
+					nameColor := primary
+					dirIconColor := iconAccent
+					if diffIncomplete {
+						if selected {
+							nameColor = secondary
+							dirIconColor = secondary
+						} else {
+							nameColor = p.muted
+							dirIconColor = p.muted
+						}
+					}
 					r := ui.Row(c).AlignItems(ui.Center).Gap(7).Children(func() {
 						if ent.IsDir {
-							ui.Icon(c, iconFolder).FontSize(14).TextColor(iconAccent)
+							ui.Icon(c, iconFolder).FontSize(14).TextColor(dirIconColor)
 						} else {
 							ui.Icon(c, iconFile).FontSize(14).TextColor(secondary)
 						}
-						ui.Text(c, ent.Path).TextColor(primary).SingleLine()
+						ui.Text(c, ent.Path).TextColor(nameColor).SingleLine()
 					})
 					r.ContextMenu(func(m *ui.Menu) {
 						hasAction := false
@@ -1448,6 +1540,32 @@ func (a *App) renderDiffView(c *ui.Context, _ config.RepoProfile, st kopia.RepoS
 }
 
 func (a *App) filteredDiffEntries() []index.DiffEntry {
+	canMemo := a.diffTimePreset == timePresetAll || a.diffTimePreset == timePresetCustom
+	var mkey diffFilterMemoKey
+	if canMemo {
+		var fromUnix, toUnix int64
+		if a.diffTimePreset == timePresetCustom {
+			fromUnix = a.diffDateFrom.UnixNano()
+			toUnix = a.diffDateTo.UnixNano()
+		}
+		mkey = diffFilterMemoKey{
+			rev:         a.diffSummaryRev,
+			changeSeg:   a.diffChangeSeg,
+			kindSeg:     a.diffKindSeg,
+			sizePreset:  a.diffSizePreset,
+			timePreset:  a.diffTimePreset,
+			dateFrom:    fromUnix,
+			dateTo:      toUnix,
+			query:       a.diffFilterQuery,
+			includeExts: a.diffIncludeExts,
+			sortCol:     a.diffSort.Column,
+			sortDesc:    a.diffSort.Descending,
+		}
+		if a.diffMemoEntries != nil && a.diffMemoKey == mkey {
+			return a.diffMemoEntries
+		}
+	}
+
 	q := strings.ToLower(strings.TrimSpace(a.diffFilterQuery))
 	exts := parseSimpleExtFilter(a.diffIncludeExts)
 	minBytes := sizePresetBytes(a.diffSizePreset)
@@ -1523,7 +1641,7 @@ func (a *App) filteredDiffEntries() []index.DiffEntry {
 		case "mtime":
 			c = x.EffectiveModTime().Compare(y.EffectiveModTime())
 		default:
-			c = strings.Compare(strings.ToLower(x.Path), strings.ToLower(y.Path))
+			c = index.CompareFoldPath(x.Path, y.Path)
 		}
 		if desc {
 			c = -c
@@ -1533,6 +1651,10 @@ func (a *App) filteredDiffEntries() []index.DiffEntry {
 		}
 		return strings.Compare(x.Path, y.Path)
 	})
+	if canMemo {
+		a.diffMemoKey = mkey
+		a.diffMemoEntries = out
+	}
 	return out
 }
 

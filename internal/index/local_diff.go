@@ -1,8 +1,8 @@
 // @scope.file index.local_diff
-// @hash sha256:bf7d7f007cf45755
-// @implements spec.dag_index sha256:70fe594b11b72420
-// @ref default index.diff sha256:652a9afb2ec395c3
-// @ref default index.engine sha256:675b0ff7a488f692
+// @hash sha256:73771143aa5aa7f2
+// @implements spec.dag_index sha256:c155f3ed2269ad94
+// @ref default index.diff sha256:bffd1e6ac38d6e3a
+// @ref default index.engine sha256:1aea8ec7725d31ae
 // @ref default kopia.types sha256:06dd81559d688041
 // Zero-subprocess snapshot-vs-local-directory preview diffing with `.kopiaignore` and `CACHEDIR.TAG` filtering.
 
@@ -316,6 +316,7 @@ func readFilteredLocalDir(
 
 // CompareRootWithLocalDir computes the recursive diff between a historical snapshot rootA (older/base)
 // and a live local directory on disk (newer/target, modeling the next backup state).
+// CompareRootWithLocalDir compares snapshot directory tree rootA against a live local directory.
 func (e *Engine) CompareRootWithLocalDir(
 	ctx context.Context,
 	repoID string,
@@ -323,11 +324,21 @@ func (e *Engine) CompareRootWithLocalDir(
 	rootA string,
 	opts LocalDiffOptions,
 ) (DiffSummary, error) {
+	return e.CompareRootWithLocalDirStream(ctx, repoID, cli, rootA, opts, nil)
+}
+
+// CompareRootWithLocalDirStream compares snapshot rootA against a live local directory using concurrent
+// local directory scanning, point DAG lookups, and real-time incremental progress callbacks.
+func (e *Engine) CompareRootWithLocalDirStream(
+	ctx context.Context,
+	repoID string,
+	cli *kopia.Client,
+	rootA string,
+	opts LocalDiffOptions,
+	onProgress func(DiffSummary),
+) (DiffSummary, error) {
 	if rootA == "" {
 		return DiffSummary{}, fmt.Errorf("snapshot root object ID is empty")
-	}
-	if cli == nil {
-		return DiffSummary{}, fmt.Errorf("kopia client unavailable")
 	}
 	cleanLocal := filepath.Clean(strings.TrimSpace(opts.LocalPath))
 	st, err := os.Stat(cleanLocal)
@@ -342,22 +353,30 @@ func (e *Engine) CompareRootWithLocalDir(
 		opts.DotIgnoreFiles = []string{".kopiaignore"}
 	}
 
-	dirCache := e.loadDiskCache(repoID)
+	dirCache := make(map[string][]CachedEntry, 64)
 	newlyFetched := make(map[string][]CachedEntry)
-	var cacheMu sync.RWMutex
+	var cacheMu sync.Mutex
 
 	ensureDirsLoaded := func(oids []string) error {
 		uniq := uniqueStrings(oids)
-		var missing []string
-		cacheMu.RLock()
+		var uncached []string
 		for _, oid := range uniq {
 			if _, ok := dirCache[oid]; !ok {
-				missing = append(missing, oid)
+				uncached = append(uncached, oid)
 			}
 		}
-		cacheMu.RUnlock()
+		if len(uncached) == 0 {
+			return nil
+		}
+		found, missing := e.getDirsBatch(repoID, uncached)
+		for oid, entries := range found {
+			dirCache[oid] = entries
+		}
 		if len(missing) == 0 {
 			return nil
+		}
+		if cli == nil {
+			return fmt.Errorf("kopia client unavailable")
 		}
 		return fetchDirectoriesConcurrent(ctx, cli, missing, 8, func(oid string, entries []CachedEntry) {
 			cacheMu.Lock()
@@ -377,6 +396,12 @@ func (e *Engine) CompareRootWithLocalDir(
 		depth     int
 	}
 
+	type scannedLocalDir struct {
+		entries []CachedEntry
+		rules   []compiledIgnoreRule
+		err     error
+	}
+
 	frontier := []localPairTask{{
 		prefix:    "",
 		oidA:      rootA,
@@ -385,6 +410,8 @@ func (e *Engine) CompareRootWithLocalDir(
 		depth:     0,
 	}}
 	var entries []DiffEntry
+	lastEmit := time.Now()
+	lastEmittedLen := 0
 
 	for len(frontier) > 0 && len(entries) < maxExpandedEntries {
 		if err := ctx.Err(); err != nil {
@@ -401,27 +428,62 @@ func (e *Engine) CompareRootWithLocalDir(
 			return DiffSummary{}, err
 		}
 
+		// Scan local directories in this BFS level concurrently (up to 8 workers) while preserving deterministic order.
+		localScans := make([]scannedLocalDir, len(frontier))
+		localTaskIndices := make([]int, 0, len(frontier))
+		for idx, task := range frontier {
+			if task.localPath != "" {
+				localTaskIndices = append(localTaskIndices, idx)
+			} else {
+				localScans[idx].rules = task.rules
+			}
+		}
+		if len(localTaskIndices) == 1 {
+			idx := localTaskIndices[0]
+			t := frontier[idx]
+			list, rls, lerr := readFilteredLocalDir(t.localPath, t.prefix, t.rules, opts)
+			localScans[idx] = scannedLocalDir{entries: list, rules: rls, err: lerr}
+		} else if len(localTaskIndices) > 1 {
+			workers := min(8, len(localTaskIndices))
+			idxCh := make(chan int, len(localTaskIndices))
+			for _, idx := range localTaskIndices {
+				idxCh <- idx
+			}
+			close(idxCh)
+			var scanWG sync.WaitGroup
+			for range workers {
+				scanWG.Add(1)
+				go func() {
+					defer scanWG.Done()
+					for idx := range idxCh {
+						if ctx.Err() != nil {
+							return
+						}
+						t := frontier[idx]
+						list, rls, lerr := readFilteredLocalDir(t.localPath, t.prefix, t.rules, opts)
+						localScans[idx] = scannedLocalDir{entries: list, rules: rls, err: lerr}
+					}
+				}()
+			}
+			scanWG.Wait()
+		}
+
 		var nextFrontier []localPairTask
-		for _, task := range frontier {
+		for idx, task := range frontier {
 			if err := ctx.Err(); err != nil {
 				return DiffSummary{}, err
+			}
+			sc := localScans[idx]
+			if sc.err != nil {
+				return DiffSummary{}, sc.err
 			}
 
 			var listA []CachedEntry
 			if task.oidA != "" {
 				listA = dirCache[task.oidA]
 			}
-			var (
-				listLocal []CachedEntry
-				dirRules  = task.rules
-			)
-			if task.localPath != "" {
-				var lerr error
-				listLocal, dirRules, lerr = readFilteredLocalDir(task.localPath, task.prefix, task.rules, opts)
-				if lerr != nil {
-					return DiffSummary{}, lerr
-				}
-			}
+			listLocal := sc.entries
+			dirRules := sc.rules
 
 			mapA := make(map[string]CachedEntry, len(listA))
 			for _, a := range listA {
@@ -529,6 +591,12 @@ func (e *Engine) CompareRootWithLocalDir(
 			}
 		}
 		frontier = nextFrontier
+
+		if onProgress != nil && len(frontier) > 0 && len(entries) > lastEmittedLen && time.Since(lastEmit) >= 90*time.Millisecond {
+			onProgress(summarizeDiffEntries(slices.Clone(entries)))
+			lastEmit = time.Now()
+			lastEmittedLen = len(entries)
+		}
 	}
 
 	if len(newlyFetched) > 0 {

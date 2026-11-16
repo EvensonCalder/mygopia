@@ -1,7 +1,7 @@
 // @scope.file kopia.server
 // @hash sha256:283407c82903e997
 // @implements spec.kopia_engine sha256:44f993b3db7e5386
-// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default config.store sha256:b49642aa028d360a
 // @ref default kopia.client sha256:c1253141ff6ec455
 // @ref default kopia.proc sha256:f7dcb41058c56053
 // @ref default kopia.types sha256:06dd81559d688041

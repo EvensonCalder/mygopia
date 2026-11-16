@@ -1,7 +1,7 @@
 // @scope.file kopia.cli
 // @hash sha256:f11fd6c9a799ad7e
 // @implements spec.kopia_engine sha256:44f993b3db7e5386
-// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default config.store sha256:b49642aa028d360a
 // @ref default kopia.proc sha256:f7dcb41058c56053
 // @ref default kopia.types sha256:06dd81559d688041
 // Non-interactive `kopia` CLI wrapper for repository connection, maintenance, and deduplication stats.

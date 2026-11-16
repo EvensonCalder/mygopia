@@ -1,19 +1,20 @@
 // @scope.file app.view_backups
-// @hash sha256:a64386c885d9dc4a
-// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @hash sha256:86061e8786a53e61
+// @implements spec.desktop_ui sha256:67347d72ce79be0a
 // @ref default github.com/egoist/mygo@0.9.1
 // @ref default github.com/egoist/mygo/ui@0.9.1
-// @ref default config.store sha256:7d43ead294b5aae9
-// @ref default index.engine sha256:675b0ff7a488f692
+// @ref default config.store sha256:b49642aa028d360a
+// @ref default index.engine sha256:1aea8ec7725d31ae
 // @ref default kopia.client sha256:c1253141ff6ec455
-// @ref default kopia.manager sha256:b3cf54f5072da57d
+// @ref default kopia.manager sha256:332d271a00525eae
 // @ref default kopia.types sha256:06dd81559d688041
-// @ref default app.core sha256:55bd88b4ebb6da29
-// @ref default app.theme sha256:e59b9f47ce2180d6
-// @ref default app.view_connect sha256:a81f49bd79ce52f7
-// @ref default app.view_diff sha256:0d80eba003c289aa
-// @ref default app.view_policies sha256:1e415fd229eaa1fc
-// @ref default app.view_snapshots sha256:019743d5d1f2f9e1
+// @ref default app.cache sha256:6e5e1b91e6872ef4
+// @ref default app.core sha256:35c4a3caee9a794f
+// @ref default app.theme sha256:5167155d01845017
+// @ref default app.view_connect sha256:90b187964bdf27c9
+// @ref default app.view_diff sha256:7a1c425c5f83abf0
+// @ref default app.view_policies sha256:144a290ee4d6d2f2
+// @ref default app.view_snapshots sha256:d032290fc4d5b704
 // Backups dashboard view rendering repository summary metrics, backup sources, and snapshot/pause/delete actions.
 
 package app
@@ -313,6 +314,8 @@ func (a *App) createSourceAction(folder string, snapNow bool) {
 			a.toast(err.Error(), true)
 			return
 		}
+		a.invalidateRepoSnapshotsCache(repoID)
+		a.invalidateRepoPolicyCache(repoID)
 		a.manager.RefreshRepo(ctx, repoID, false)
 		a.toast(locales.SourceAdded(), false)
 	}()
@@ -336,19 +339,23 @@ func (a *App) triggerSnapshotAction(src *kopia.SourceInfo) {
 			a.toast(err.Error(), true)
 			return
 		}
+		a.invalidateRepoSnapshotsCache(repoID)
 		a.manager.RefreshRepo(ctx, repoID, false)
 		a.toast(locales.BackupTriggered(), false)
 
 		if autoIndex {
 			go func() {
 				time.Sleep(3 * time.Second)
+				a.invalidateRepoSnapshotsCache(repoID)
 				st, ok := a.manager.State(repoID)
 				if ok && st.Connected() {
 					idxCtx, idxCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+					a.manager.RefreshRepo(idxCtx, repoID, false)
 					_ = a.indexer.IndexRepo(idxCtx, repoID, st.Profile.Name, cli)
 					idxCancel()
 					a.uiUpdate(func() {
 						a.searchDirty = true
+						a.searchVerHistKey = ""
 					})
 				}
 			}()
@@ -437,6 +444,8 @@ func (a *App) removeSourceAction(src kopia.SourceInfo) {
 			a.toast(err.Error(), true)
 			return
 		}
+		a.invalidateRepoSnapshotsCache(repoID)
+		a.invalidateRepoPolicyCache(repoID)
 		a.manager.RefreshRepo(ctx, repoID, false)
 		a.toast(locales.SourceRemoved(), false)
 	}()

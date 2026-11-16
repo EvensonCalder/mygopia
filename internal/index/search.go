@@ -1,7 +1,7 @@
 // @scope.file index.search
-// @hash sha256:5340b345cb936708
-// @implements spec.dag_index sha256:70fe594b11b72420
-// @ref default index.engine sha256:675b0ff7a488f692
+// @hash sha256:dee0e6b0225186a9
+// @implements spec.dag_index sha256:c155f3ed2269ad94
+// @ref default index.engine sha256:1aea8ec7725d31ae
 // @ref default kopia.types sha256:06dd81559d688041
 // Multi-token, extension, size, and deleted-status in-memory version search over indexed repositories.
 
@@ -75,6 +75,9 @@ type Result struct {
 
 // Search executes an in-memory filtered and sorted query across indexed repositories.
 func (e *Engine) Search(q Query) Result {
+	if q.RepoID != "" {
+		e.EnsureCatalogLoaded(q.RepoID)
+	}
 	tokens := splitQueryTokens(q.Text)
 	normPrefix := strings.ReplaceAll(strings.TrimSpace(q.PathPrefix), "\\", "/")
 	pathPrefix := strings.ToLower(strings.Trim(normPrefix, "/"))

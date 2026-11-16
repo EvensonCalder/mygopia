@@ -1,5 +1,5 @@
 // @scope.file config.store
-// @hash sha256:7d43ead294b5aae9
+// @hash sha256:b49642aa028d360a
 // @implements spec.architecture sha256:de075e4493c51e2f
 // Persistent settings store, Kopia/rclone binary auto-detection, and repository profile discovery.
 
@@ -69,6 +69,13 @@ const (
 	SidebarMaxWidth float32 = 340
 )
 
+// Disk cache size bounds (in MiB) for the local bbolt + S2 DAG & search cache.
+const (
+	DefaultCacheMaxMB = 1024
+	MinCacheMaxMB     = 32
+	MaxCacheMaxMB     = 16384
+)
+
 // Settings holds persisted application preferences.
 type Settings struct {
 	Theme              string        `json:"theme"`
@@ -83,6 +90,7 @@ type Settings struct {
 	CloseToTray        bool          `json:"closeToTray"`
 	Notify             bool          `json:"notify"`
 	AutoIndex          bool          `json:"autoIndex"`
+	CacheMaxMB         int           `json:"cacheMaxMB,omitempty"`
 	ActiveRepoID       string        `json:"activeRepoId,omitempty"`
 	SidebarCustomWidth float32       `json:"sidebarCustomWidth,omitempty"`
 	SidebarCollapsed   bool          `json:"sidebarCollapsed,omitempty"`
@@ -101,6 +109,7 @@ func DefaultSettings() Settings {
 		CloseToTray:   true,
 		Notify:        true,
 		AutoIndex:     true,
+		CacheMaxMB:    DefaultCacheMaxMB,
 	}
 }
 
@@ -125,6 +134,11 @@ func (s *Settings) Normalize() {
 	case ScaleSmall, ScaleMedium, ScaleLarge:
 	default:
 		s.UIScale = ScaleMedium
+	}
+	if s.CacheMaxMB <= 0 {
+		s.CacheMaxMB = DefaultCacheMaxMB
+	} else {
+		s.CacheMaxMB = min(max(s.CacheMaxMB, MinCacheMaxMB), MaxCacheMaxMB)
 	}
 	if s.SidebarCustomWidth < 0 {
 		s.SidebarCustomWidth = 0
@@ -595,6 +609,7 @@ type rawKopiaConfig struct {
 		Config json.RawMessage `json:"config"`
 	} `json:"storage"`
 	APIServer *struct {
+		URL     string `json:"url"`
 		BaseURL string `json:"baseUrl"`
 	} `json:"apiServer"`
 	Caching struct {
@@ -614,11 +629,29 @@ func InspectConfigFile(configPath string) (name string, storageHint string, conn
 		return base, "", false
 	}
 	if raw.Storage.Type == "" {
-		if raw.APIServer != nil && strings.TrimSpace(raw.APIServer.BaseURL) != "" {
-			u := sanitizeHintValue(raw.APIServer.BaseURL)
+		var rawSrvURL string
+		if raw.APIServer != nil {
+			rawSrvURL = strings.TrimSpace(raw.APIServer.URL)
+			if rawSrvURL == "" {
+				rawSrvURL = strings.TrimSpace(raw.APIServer.BaseURL)
+			}
+		}
+		if rawSrvURL != "" {
+			u := sanitizeHintValue(rawSrvURL)
 			storageHint = "server: " + u
-			if strings.TrimSpace(raw.Description) != "" {
-				name = strings.TrimSpace(raw.Description)
+			desc := strings.TrimSpace(raw.Description)
+			if desc != "" {
+				if strings.HasPrefix(desc, "API Server:") {
+					if parsed, err := url.Parse(u); err == nil && parsed.Hostname() != "" {
+						name = parsed.Hostname()
+					} else {
+						name = desc
+					}
+				} else {
+					name = desc
+				}
+			} else if parsed, err := url.Parse(u); err == nil && parsed.Hostname() != "" {
+				name = parsed.Hostname()
 			} else {
 				name = fmt.Sprintf("server (%s)", u)
 			}
@@ -678,13 +711,16 @@ func DiscoverProfiles(existing []RepoProfile, configDir string) []RepoProfile {
 		}
 		seenPaths[key] = true
 		name, hint, ok := InspectConfigFile(clean)
-		if p.Name == "" || p.Name == "Repository" {
+		base := strings.TrimSuffix(filepath.Base(clean), filepath.Ext(clean))
+		if p.Name == "" || strings.EqualFold(p.Name, "Repository") || p.Name == "Primary Repository" || p.Name == base {
 			if name != "" {
 				p.Name = name
 			}
 		}
-		if ok && hint != "" {
+		if ok {
 			p.StorageHint = hint
+		} else {
+			p.StorageHint = ""
 		}
 		if p.ID == "" {
 			p.ID = idFromPath(clean)

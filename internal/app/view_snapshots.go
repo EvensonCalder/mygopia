@@ -1,18 +1,21 @@
 // @scope.file app.view_snapshots
-// @hash sha256:019743d5d1f2f9e1
-// @implements spec.desktop_ui sha256:df32174eba8bbd2b
+// @hash sha256:d032290fc4d5b704
+// @implements spec.desktop_ui sha256:67347d72ce79be0a
 // @ref default github.com/egoist/mygo@0.9.1
 // @ref default github.com/egoist/mygo/ui@0.9.1
-// @ref default config.store sha256:7d43ead294b5aae9
+// @ref default config.store sha256:b49642aa028d360a
+// @ref default index.diff sha256:bffd1e6ac38d6e3a
+// @ref default index.engine sha256:1aea8ec7725d31ae
 // @ref default kopia.client sha256:c1253141ff6ec455
-// @ref default kopia.manager sha256:b3cf54f5072da57d
+// @ref default kopia.manager sha256:332d271a00525eae
 // @ref default kopia.types sha256:06dd81559d688041
-// @ref default app.core sha256:55bd88b4ebb6da29
+// @ref default app.cache sha256:6e5e1b91e6872ef4
+// @ref default app.core sha256:35c4a3caee9a794f
 // @ref default app.icons sha256:a3df148b095e3dde
-// @ref default app.theme sha256:e59b9f47ce2180d6
-// @ref default app.view_connect sha256:a81f49bd79ce52f7
-// @ref default app.view_diff sha256:0d80eba003c289aa
-// @ref default app.view_policies sha256:1e415fd229eaa1fc
+// @ref default app.theme sha256:5167155d01845017
+// @ref default app.view_connect sha256:90b187964bdf27c9
+// @ref default app.view_diff sha256:7a1c425c5f83abf0
+// @ref default app.view_policies sha256:144a290ee4d6d2f2
 // Snapshot timeline, directory tree browser, FUSE/WebDAV mount integration, and file restore modal.
 
 package app
@@ -32,13 +35,19 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"mygopia/internal/config"
+	"mygopia/internal/index"
 	"mygopia/internal/kopia"
 	"mygopia/locales"
 )
 
 func (a *App) openSnapshotsForSource(src kopia.SourceInfo) {
-	a.snapSourceStr = src.String()
-	a.selectedSnapIdx = -1
+	srcStr := src.String()
+	if a.snapSourceStr != srcStr {
+		a.snapSourceStr = srcStr
+		a.selectedSnapIdx = -1
+		a.browserBreadcrumbs = nil
+		a.setBrowserEntriesSlice(nil)
+	}
 	a.activeNav = navSnapshots
 	a.reloadSnapshotsAsync()
 }
@@ -64,40 +73,46 @@ func (a *App) openSnapshotByID(repoID string, src kopia.SourceInfo, snapID strin
 	targetRepo := a.settings.ActiveRepoID
 	targetSourceStr := a.snapSourceStr
 	includeIdentical := a.snapShowIdentical
+
+	// Instant first-frame render if source snapshots are already cached
+	seeded := false
+	if cached, ok := a.lookupCachedSnapshots(targetRepo, targetSourceStr, includeIdentical); ok && len(cached) > 0 {
+		seeded = true
+		a.setSnapshotsSlice(cached)
+		for i, sn := range cached {
+			if sn.ID == snapID {
+				a.selectedSnapIdx = i
+				a.openSnapshotRoot(sn)
+				return
+			}
+		}
+	}
+
+	prof, st := a.activeRepoState()
 	a.snapLoadSeq++
 	seq := a.snapLoadSeq
 	a.snapLoading = true
+	a.snapLoadSlow = a.estimateSnapListSlow(prof, st, seeded)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
-		cli, err := a.manager.ClientFor(ctx, targetRepo)
+		snaps, err := a.fetchSnapshotsCoalesced(ctx, targetRepo, src, includeIdentical)
 		if err != nil {
 			a.uiUpdate(func() {
 				if a.snapLoadSeq == seq {
 					a.snapLoading = false
+					a.snapLoadSlow = false
 				}
 			})
 			return
 		}
-		resp, err := cli.ListSnapshots(ctx, src, includeIdentical)
-		if err != nil {
-			a.uiUpdate(func() {
-				if a.snapLoadSeq == seq {
-					a.snapLoading = false
-				}
-			})
-			return
-		}
-		snaps := resp.Snapshots
-		slices.SortFunc(snaps, func(x, y *kopia.Snapshot) int {
-			return y.StartTime.Compare(x.StartTime.Time)
-		})
 		a.uiUpdate(func() {
 			if a.snapLoadSeq != seq || a.settings.ActiveRepoID != targetRepo || a.snapSourceStr != targetSourceStr {
 				return
 			}
 			a.snapLoading = false
-			a.snapshots = snaps
+			a.snapLoadSlow = false
+			a.setSnapshotsSlice(snaps)
 			idx := 0
 			for i, sn := range snaps {
 				if sn.ID == snapID {
@@ -111,7 +126,7 @@ func (a *App) openSnapshotByID(repoID string, src kopia.SourceInfo, snapID strin
 			} else {
 				a.selectedSnapIdx = -1
 				a.browserBreadcrumbs = nil
-				a.browserEntries = nil
+				a.setBrowserEntriesSlice(nil)
 			}
 		})
 	}()
@@ -122,7 +137,7 @@ func (a *App) reloadSnapshotsAsync() {
 	if a.manager == nil || repoID == "" {
 		return
 	}
-	_, st := a.activeRepoState()
+	prof, st := a.activeRepoState()
 	sources := st.SourceList()
 	if len(sources) == 0 {
 		return
@@ -141,52 +156,65 @@ func (a *App) reloadSnapshotsAsync() {
 		a.snapSourceStr = cp.String()
 	}
 
+	includeIdentical := a.snapShowIdentical
+	targetSource := *chosen
+	targetSourceStr := targetSource.String()
+
+	// Stale-While-Revalidate: if target source is already cached, render immediately in 0ms!
+	seeded := false
+	if cached, ok := a.lookupCachedSnapshots(repoID, targetSourceStr, includeIdentical); ok && len(cached) > 0 {
+		seeded = true
+		if !snapshotsEqual(a.snapshots, cached) {
+			a.setSnapshotsSlice(cached)
+			if a.selectedSnapIdx < 0 || a.selectedSnapIdx >= len(cached) {
+				a.selectedSnapIdx = 0
+				a.openSnapshotRoot(cached[0])
+			}
+		} else if a.selectedSnapIdx < 0 {
+			a.selectedSnapIdx = 0
+			a.openSnapshotRoot(cached[0])
+		} else if len(a.browserBreadcrumbs) == 0 {
+			a.openSnapshotRoot(cached[a.selectedSnapIdx])
+		}
+	}
+
 	var initialSnapID string
 	if a.selectedSnapIdx >= 0 && a.selectedSnapIdx < len(a.snapshots) {
 		initialSnapID = a.snapshots[a.selectedSnapIdx].ID
 	}
 	initialLeafOID := a.currentBrowserOID()
 
-	includeIdentical := a.snapShowIdentical
-	targetSource := *chosen
-	targetSourceStr := targetSource.String()
 	a.snapLoadSeq++
 	seq := a.snapLoadSeq
 	a.snapLoading = true
+	a.snapLoadSlow = a.estimateSnapListSlow(prof, st, seeded)
 
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
-		cli, err := a.manager.ClientFor(ctx, repoID)
+		snaps, err := a.fetchSnapshotsCoalesced(ctx, repoID, targetSource, includeIdentical)
 		if err != nil {
 			a.uiUpdate(func() {
 				if a.snapLoadSeq == seq {
 					a.snapLoading = false
-				}
-			})
-			return
-		}
-		resp, err := cli.ListSnapshots(ctx, targetSource, includeIdentical)
-		if err != nil {
-			a.uiUpdate(func() {
-				if a.snapLoadSeq == seq {
-					a.snapLoading = false
+					a.snapLoadSlow = false
 				}
 			})
 			a.toast(err.Error(), true)
 			return
 		}
-		snaps := resp.Snapshots
-		slices.SortFunc(snaps, func(x, y *kopia.Snapshot) int {
-			return y.StartTime.Compare(x.StartTime.Time)
-		})
 		a.uiUpdate(func() {
 			if a.snapLoadSeq != seq || a.settings.ActiveRepoID != repoID || a.snapSourceStr != targetSourceStr {
 				return
 			}
 			a.snapLoading = false
+			a.snapLoadSlow = false
 
-			// Check if the user selected a different snapshot or navigated folders while loading
+			// Fast no-op exit when background revalidation confirms cached snapshot list is already identical!
+			if snapshotsEqual(a.snapshots, snaps) && a.selectedSnapIdx >= 0 && a.selectedSnapIdx < len(snaps) && len(a.browserBreadcrumbs) > 0 && len(a.browserEntries) > 0 {
+				return
+			}
+
 			var currentSnapID string
 			if a.selectedSnapIdx >= 0 && a.selectedSnapIdx < len(a.snapshots) {
 				currentSnapID = a.snapshots[a.selectedSnapIdx].ID
@@ -199,11 +227,11 @@ func (a *App) reloadSnapshotsAsync() {
 				wantSnapID = initialSnapID
 			}
 
-			a.snapshots = snaps
+			a.setSnapshotsSlice(snaps)
 			if len(snaps) == 0 {
 				a.selectedSnapIdx = -1
 				a.browserBreadcrumbs = nil
-				a.browserEntries = nil
+				a.setBrowserEntriesSlice(nil)
 				return
 			}
 			preserved := -1
@@ -218,14 +246,15 @@ func (a *App) reloadSnapshotsAsync() {
 			if preserved >= 0 {
 				a.selectedSnapIdx = preserved
 				if userChangedSelection && len(a.browserBreadcrumbs) > 0 {
-					// Preserve user's active navigation made during refresh
 					return
 				}
 				if len(a.browserBreadcrumbs) == 0 {
 					a.openSnapshotRoot(snaps[preserved])
 				} else {
 					curOID := a.browserBreadcrumbs[len(a.browserBreadcrumbs)-1].OID
-					a.loadDirectoryEntriesAsync(curOID)
+					if len(a.browserEntries) == 0 {
+						a.loadDirectoryEntriesAsync(curOID)
+					}
 				}
 			} else {
 				a.selectedSnapIdx = 0
@@ -252,36 +281,49 @@ func (a *App) openSnapshotRoot(sn *kopia.Snapshot) {
 	a.browserBreadcrumbs = []dirCrumb{{Name: "", OID: sn.RootID}}
 	a.browserFilter = ""
 	a.browserPageOffset = 0
-	a.loadDirectoryEntriesAsync(sn.RootID)
+	a.loadDirectoryEntriesWithHint(sn.RootID, sn.Summary)
 }
 
 func (a *App) loadDirectoryEntriesAsync(dirOID string) {
+	a.loadDirectoryEntriesWithHint(dirOID, nil)
+}
+
+func (a *App) loadDirectoryEntriesWithHint(dirOID string, summary *kopia.DirectorySummary) {
 	repoID := a.settings.ActiveRepoID
-	if a.manager == nil || repoID == "" || dirOID == "" {
+	if repoID == "" || dirOID == "" {
 		return
 	}
 	a.browserLoadSeq++
 	seq := a.browserLoadSeq
-	a.browserLoading = true
 	a.browserSelectedRow = -1
+
+	// Fast synchronous path (< 20 µs): hit L1 LRU or bbolt DAG cache with zero network RPC or loading flicker!
+	if a.indexer != nil {
+		if cached, ok := a.indexer.LookupDirectory(repoID, dirOID); ok {
+			a.browserLoading = false
+			a.browserLoadSlow = false
+			a.setBrowserEntriesSlice(index.ToKopiaDirEntries(cached))
+			return
+		}
+	}
+
+	if a.manager == nil {
+		return
+	}
+	prof, st := a.activeRepoState()
+	a.browserLoading = true
+	a.browserLoadSlow = a.estimateDirLoadSlow(prof, st, summary)
 
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
-		cli, err := a.manager.ClientFor(ctx, repoID)
+		entries, err := a.fetchDirectoryCoalesced(ctx, repoID, dirOID)
 		if err != nil {
 			a.uiUpdate(func() {
 				if a.browserLoadSeq == seq {
 					a.browserLoading = false
-				}
-			})
-			return
-		}
-		dm, err := cli.GetDirectory(ctx, dirOID)
-		if err != nil {
-			a.uiUpdate(func() {
-				if a.browserLoadSeq == seq {
-					a.browserLoading = false
+					a.browserLoadSlow = false
+					a.setBrowserEntriesSlice(nil)
 				}
 			})
 			a.toast(err.Error(), true)
@@ -292,7 +334,8 @@ func (a *App) loadDirectoryEntriesAsync(dirOID string) {
 				return
 			}
 			a.browserLoading = false
-			a.browserEntries = dm.Entries
+			a.browserLoadSlow = false
+			a.setBrowserEntriesSlice(entries)
 		})
 	}()
 }
@@ -358,7 +401,12 @@ func (a *App) renderSnapshotTimelinePane(c *ui.Context, st kopia.RepoSnapshotSta
 			if ui.Select(c.Key("snap-source-sel"), &curSrcLabel, srcLabels).Label(locales.SelectSource()).MinWidth(0).Grow(1).Changed() {
 				for i, lb := range srcLabels {
 					if lb == curSrcLabel && i < len(srcKeys) {
-						a.snapSourceStr = srcKeys[i]
+						if a.snapSourceStr != srcKeys[i] {
+							a.snapSourceStr = srcKeys[i]
+							a.selectedSnapIdx = -1
+							a.browserBreadcrumbs = nil
+							a.setBrowserEntriesSlice(nil)
+						}
 						break
 					}
 				}
@@ -567,10 +615,22 @@ func (a *App) renderSnapshotTimelinePane(c *ui.Context, st kopia.RepoSnapshotSta
 }
 
 func (a *App) filteredSnapshotIndices() []int {
-	after, before := resolveTimeRangeBounds(a.snapTimePreset, a.snapDateFrom, a.snapDateTo)
 	q := strings.ToLower(strings.TrimSpace(a.snapFilterText))
 	yearFilter := strings.TrimSpace(a.snapYearFilter)
+	mkey := snapTimelineMemoKey{
+		rev:        a.snapshotsRev,
+		timePreset: a.snapTimePreset,
+		yearFilter: yearFilter,
+		dateFrom:   a.snapDateFrom.UnixNano(),
+		dateTo:     a.snapDateTo.UnixNano(),
+		query:      q,
+		pinnedOnly: a.snapPinnedOnly,
+	}
+	if a.snapMemoIdx != nil && a.snapMemoKey == mkey && a.snapTimePreset == timePresetAll {
+		return a.snapMemoIdx
+	}
 
+	after, before := resolveTimeRangeBounds(a.snapTimePreset, a.snapDateFrom, a.snapDateTo)
 	out := make([]int, 0, len(a.snapshots))
 	for i, sn := range a.snapshots {
 		if sn == nil {
@@ -594,6 +654,8 @@ func (a *App) filteredSnapshotIndices() []int {
 		}
 		out = append(out, i)
 	}
+	a.snapMemoKey = mkey
+	a.snapMemoIdx = out
 	return out
 }
 
@@ -797,6 +859,9 @@ func (a *App) renderSnapshotBrowserPane(c *ui.Context, st kopia.RepoSnapshotStat
 		a.browserTable.Selected = &a.browserSelectedRow
 		a.browserTable.Sort = &a.browserSort
 
+		p := paletteOf(c)
+		browserIncomplete := a.browserLoading || (a.snapLoading && len(a.snapshots) == 0)
+
 		card(c, func() {
 			tbl := ui.Table(c, &a.browserTable, cols, len(pageEntries), func(row, col int) {
 				ent := pageEntries[row]
@@ -804,13 +869,24 @@ func (a *App) renderSnapshotBrowserPane(c *ui.Context, st kopia.RepoSnapshotStat
 				primary, secondary, iconAccent := tableRowColors(c, selected)
 				switch col {
 				case 0:
+					nameColor := primary
+					dirIconColor := iconAccent
+					if browserIncomplete {
+						if selected {
+							nameColor = secondary
+							dirIconColor = secondary
+						} else {
+							nameColor = p.muted
+							dirIconColor = p.muted
+						}
+					}
 					rowBox := ui.Row(c).AlignItems(ui.Center).Gap(7).Children(func() {
 						if ent.IsDir() {
-							ui.Icon(c, iconFolder).FontSize(14).TextColor(iconAccent)
+							ui.Icon(c, iconFolder).FontSize(14).TextColor(dirIconColor)
 						} else {
 							ui.Icon(c, iconFile).FontSize(14).TextColor(secondary)
 						}
-						ui.Text(c, ent.Name).TextColor(primary).SingleLine()
+						ui.Text(c, ent.Name).TextColor(nameColor).SingleLine()
 					})
 					rowBox.ContextMenu(func(m *ui.Menu) {
 						if ent.IsDir() {
@@ -863,11 +939,28 @@ func (a *App) enterSubdirectory(ent *kopia.DirEntry) {
 	a.browserBreadcrumbs = append(a.browserBreadcrumbs, dirCrumb{Name: ent.Name, OID: ent.ObjectID})
 	a.browserFilter = ""
 	a.browserPageOffset = 0
-	a.loadDirectoryEntriesAsync(ent.ObjectID)
+	a.loadDirectoryEntriesWithHint(ent.ObjectID, ent.DirSummary)
 }
 
 func (a *App) filteredBrowserEntries() []*kopia.DirEntry {
 	q := strings.ToLower(strings.TrimSpace(a.browserFilter))
+	col := a.browserSort.Column
+	desc := a.browserSort.Descending
+	mkey := browserFilterMemoKey{
+		rev:        a.browserEntriesRev,
+		query:      q,
+		kindSeg:    a.browserKindSeg,
+		sizePreset: a.browserSizePreset,
+		timePreset: a.browserTimePreset,
+		dateFrom:   a.browserDateFrom.UnixNano(),
+		dateTo:     a.browserDateTo.UnixNano(),
+		sortCol:    col,
+		sortDesc:   desc,
+	}
+	if a.browserMemoEntries != nil && a.browserMemoKey == mkey && a.browserTimePreset == timePresetAll {
+		return a.browserMemoEntries
+	}
+
 	minBytes := sizePresetBytes(a.browserSizePreset)
 	after, before := resolveTimeRangeBounds(a.browserTimePreset, a.browserDateFrom, a.browserDateTo)
 
@@ -893,10 +986,7 @@ func (a *App) filteredBrowserEntries() []*kopia.DirEntry {
 		}
 		out = append(out, e)
 	}
-	col := a.browserSort.Column
-	desc := a.browserSort.Descending
 	slices.SortFunc(out, func(x, y *kopia.DirEntry) int {
-		// Keep folders grouped above files when sorting by name
 		if col == "name" || col == "" {
 			if x.IsDir() != y.IsDir() {
 				if x.IsDir() {
@@ -912,13 +1002,15 @@ func (a *App) filteredBrowserEntries() []*kopia.DirEntry {
 		case "mtime":
 			c = x.ModTime.Compare(y.ModTime.Time)
 		default:
-			c = strings.Compare(strings.ToLower(x.Name), strings.ToLower(y.Name))
+			c = index.CompareFoldPath(x.Name, y.Name)
 		}
 		if desc {
 			c = -c
 		}
 		return c
 	})
+	a.browserMemoKey = mkey
+	a.browserMemoEntries = out
 	return out
 }
 
@@ -1164,6 +1256,7 @@ func (a *App) runSnapshotEdit(req kopia.EditSnapshotsRequest) {
 			a.toast(err.Error(), true)
 			return
 		}
+		a.invalidateRepoSnapshotsCache(repoID)
 		a.toast(locales.SnapshotUpdated(), false)
 		a.uiUpdate(func() {
 			a.reloadSnapshotsAsync()
@@ -1203,6 +1296,7 @@ func (a *App) deleteSnapshotAction(sn *kopia.Snapshot) {
 			a.toast(err.Error(), true)
 			return
 		}
+		a.invalidateRepoSnapshotsCache(repoID)
 		a.toast(locales.SnapshotDeleted(), false)
 		a.uiUpdate(func() {
 			a.reloadSnapshotsAsync()
